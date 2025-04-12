@@ -1,0 +1,41 @@
+
+version: '3.8'
+
+services:
+
+
+  postgres:
+    image: postgres:13
+    ports:
+      - '5432:5432'
+    container_name: postgres
+
+    restart: always
+    environment:
+      POSTGRES_USER: 'postgres'
+      POSTGRES_PASSWORD: 'q-3yG_jBATn}=)UP^bZD97'
+      POSTGRES_DB: 'company-db'
+    volumes:
+      - ./db:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    restart: unless-stopped
+    ports:
+      - "9999:8978"
+    volumes:
+      - cloudbeaver:/opt/cloudbeaver/workspace
+volumes:
+  postgres-data:
+  rabbitmq_data:
+  cloudbeaver:
+    driver: local
