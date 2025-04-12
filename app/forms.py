@@ -29,8 +29,3 @@ class SendInviteForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     submit = SubmitField('Send Invite')
 
-# class Request(FlaskForm):
-#     Sender = StringField('')
-#     Department = SelectField('Department', choices=['Managers','CEO','IT','Financial','Tenders','Techincals'])
-#     Topic = StringField('Topic' , validators = DataRequired())
-#     Content = ''
