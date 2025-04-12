@@ -30,13 +30,13 @@ def callback(ch, method, properties, body):
             for attendee_id, first_name, email in attendees_data:
                 msg = Message(
                     subject=f"📅 New Meeting Invitation: {meeting.title}",
-                    sender='keshavarzi96@gmail.com',
+                    sender='Your Email',
                     recipients=[email]
                 )
                 msg.body = f"""
                 Dear {first_name},
 
-                You have been invited to a meeting at **Paniz Energy Company**.
+                You have been invited to a meeting at ** Company Name**.
 
                 **Meeting Details:**
 
@@ -49,7 +49,7 @@ def callback(ch, method, properties, body):
                 Please make sure to be on time.
 
                 Best regards,  
-                **Paniz Energy Company**
+                **Your Comapny Name**
                 """
                 conn.send(msg)
                 print(f"Sent email to {email} for meeting {meeting_id}")
