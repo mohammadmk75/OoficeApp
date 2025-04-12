@@ -25,15 +25,15 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 LUNCH_MENU = {
-    "Saturday": ["زرشک پلو (سینه)", "زرشک پلو (ران)", "خوراک مرغ (سینه)", "خوراک مرغ (ران)"],
-    "Sunday": ["کوبیده", "جوجه (سینه)", "جوجه (ران)"],
-    "Monday": ["عدس پلو", "جوجه (سینه)", "جوجه (ران)"],
-    "Tuesday": ["لوبیا پلو", "زرشک پلو (سینه)", "زرشک پلو (ران)", "خوراک مرغ (سینه)", "خوراک مرغ (ران)"],
-    "Wednesday": ["ماهی",  "جوجه (سینه)", "جوجه (ران)"],
+    "Saturday": ["lunch1", "lunch 2"],
+    "Sunday": ["lunch1", "lunch 2"],
+    "Monday": ["lunch1", "lunch 2"],
+    "Tuesday": ["lunch1", "lunch 2"],
+    "Wednesday": ["lunch1", "lunch 2"],
 }
 
 main_blueprint = Blueprint('main', __name__)
-serializer = URLSafeTimedSerializer('pbbivvx9a*o$ng$*kk@$=)h9bq($jc1i9hb44r_1@bbnlhzoc')
+serializer = URLSafeTimedSerializer('Genarate Strong Serial')
 
 def publish_to_rabbitmq(meeting_id, attendees_data):
     # RabbitMQ connection parameters
@@ -187,18 +187,7 @@ def dashboard():
     # Handle "load earlier" parameter
     load_earlier = request.args.get('load_earlier', 'false') == 'true'
 
-    # Base task query
-    # if current_user.is_teamlead:
-    #     tasks_query = Tasks.query.filter(
-    #         or_(
-    #             Tasks.assigned_to == current_user.id,
-    #             Tasks.created_by == current_user.id,
-    #             Tasks.assigned_to.in_(db.session.query(Users.id).filter(Users.group == current_user.group))
-    #         )
-    #     )
-    # elif current_user.group in ['Admin', 'CEO', 'Managers']:
-    #     tasks_query = Tasks.query
-    # else:
+
     tasks_query = Tasks.query.filter(
             (Tasks.assigned_to == current_user.id) | (Tasks.created_by == current_user.id)
         )
@@ -277,46 +266,7 @@ def update_task_status():
     return jsonify({'message': message}), 200
 
 
-# @main_blueprint.route('/tasks')
-# @login_required
-# def tasks():
-#     filter_type = request.args.get('filter', 'all')  # Default to 'all'
-#     now = now1
 
-#     if current_user.group in ['Admin', 'CEO', 'Managers']:
-#         if filter_type == 'created_by_me':
-#             tasks = Tasks.query.filter(Tasks.created_by == current_user.id).all()
-#         elif filter_type == 'assigned_to_me':
-#             tasks = Tasks.query.filter(Tasks.assigned_to == current_user.id).all()
-#         elif filter_type == 'group':
-#             tasks = Tasks.query.filter(
-#                 Tasks.assigned_to.in_(db.session.query(Users.id).filter(Users.group == current_user.group))
-#             ).all()
-#         else:  # 'all'
-#             tasks = Tasks.query.all()
-#     elif current_user.is_teamlead:
-#         if filter_type == 'created_by_me':
-#             tasks = Tasks.query.filter(Tasks.created_by == current_user.id).all()
-#         elif filter_type == 'assigned_to_me':
-#             tasks = Tasks.query.filter(Tasks.assigned_to == current_user.id).all()
-#         elif filter_type == 'group':
-#             tasks = Tasks.query.filter(
-#                 Tasks.assigned_to.in_(db.session.query(Users.id).filter(Users.group == current_user.group))
-#             ).all()
-#         else:  # 'all'
-#             tasks = Tasks.query.filter(
-#                 or_(
-#                     Tasks.assigned_to == current_user.id,
-#                     Tasks.created_by == current_user.id,
-#                     Tasks.assigned_to.in_(db.session.query(Users.id).filter(Users.group == current_user.group))
-#                 )
-#             ).all()
-#     else:
-#         tasks = Tasks.query.filter(
-#             (Tasks.assigned_to == current_user.id) | (Tasks.created_by == current_user.id)
-#         ).all()
-
-#     return render_template('view_tasks.html', tasks=tasks, filter_type=filter_type)
 
 @main_blueprint.route('/tasks')
 @login_required
