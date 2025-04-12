@@ -4,10 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import pytz
 
-# meeting_attendees = db.Table('meeting_attendees',
-#     db.Column('meeting_id', db.Integer, db.ForeignKey('meetings.id'), primary_key=True),
-#     db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True)
-# )
+
 
 def iran_now():
     return datetime.now(iran_tz)
