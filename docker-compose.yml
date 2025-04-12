@@ -13,7 +13,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: 'postgres'
-      POSTGRES_PASSWORD: 'q-3yG_jBATn}=)UP^bZD97'
+      POSTGRES_PASSWORD: 'your Very Strong Password'
       POSTGRES_DB: 'company-db'
     volumes:
       - ./db:/var/lib/postgresql/data
