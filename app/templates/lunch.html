@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <h2><i class="bi bi-egg-fried"></i> Lunch Ordering</h2>
+        <hr class="section-separator">
+
+        <!-- Lunch Selection -->
+        <div class="lunch-section">
+            <div class="section-header">
+                <h3>Select Your Lunch for {{ today }}</h3>
+            </div>
+            <hr class="card-separator">
+
+            <form method="POST" class="lunch-form">
+                <div class="form-group">
+                    <label for="food"><i class="bi bi-list"></i> Choose Your Meal</label>
+                    <select name="food" class="form-control" required>
+                        <option value="" disabled {% if not current_order %}selected{% endif %}>-- Select a meal --</option>
+                        {% for item in menu %}
+                            <option value="{{ item }}" {% if current_order and current_order.food == item %}selected{% endif %}>{{ item }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> {% if current_order %} Update Order {% else %} Confirm Order {% endif %}
+                    </button>
+                    <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>
+                </div>
+            </form>
+
+            {% if current_order %}
+                <div class="current-order">
+                    <p><strong>Your Current Order:</strong> {{ current_order.food }} (Ordered at {{ current_order.ordered_at.strftime('%H:%M IRST') }})</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Office/Admin View: Detailed Orders and Summary -->
+        {% if current_user.group in ['Office', 'Admin'] %}
+            <hr class="section-separator">
+
+            <div class="office-section">
+                <div class="section-header">
+                    <h3>Today’s Lunch Orders ({{ today }})</h3>
+                </div>
+                <hr class="card-separator">
+
+                {% if office_orders %}
+                    <!-- Detailed Orders Table -->
+                    <table class="order-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Food</th>
+                                <th>Ordered At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in office_orders %}
+                                <tr>
+                                    <td>{{ order.user.first_name }} {{ order.user.last_name }}</td>
+                                    <td>{{ order.food }}</td>
+                                    <td>{{ order.ordered_at.strftime('%H:%M IRST') }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    <!-- Food Summary -->
+                    <div class="food-summary">
+                        <h4>Order Summary</h4>
+                        <ul>
+                            {% for food, count in food_summary.items() %}
+                                <li>{{ food }}: {{ count }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% else %}
+                    <p>No lunch orders yet for today.</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --accent: #e74c3c;
+            --background: #f5f6fa;
+            --card-bg: #ffffff;
+            --text: #2d3436;
+            --muted: #7f8c8d;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
+        h2 { font-size: 2.5rem; color: var(--primary); margin-bottom: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        h3 { font-size: 1.8rem; color: var(--primary); font-weight: 600; width: 100%; }
+        h4 { font-size: 1.4rem; color: var(--primary); margin-top: 20px; }
+        .section-separator { border: 0; height: 2px; background: linear-gradient(to right, var(--secondary), transparent); margin: 20px 0; }
+        .card-separator { border: 0; height: 1px; background: rgba(0, 0, 0, 0.1); margin: 20px 0; }
+
+        .lunch-section, .office-section {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+
+        .form-group { margin-bottom: 20px; }
+        .form-group label { font-size: 1.1rem; color: var(--text); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            font-size: 1rem;
+            border: 1px solid var(--muted);
+            border-radius: 5px;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .form-control:focus { outline: none; border-color: var(--secondary); box-shadow: 0 0 5px rgba(52, 152, 219, 0.3); }
+
+        .form-actions { display: flex; gap: 20px; justify-content: center; margin-top: 20px; }
+        .btn { padding: 12px 25px; border-radius: 25px; font-weight: 500; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: var(--secondary); color: white; border: none; }
+        .btn-primary:hover { background: #2980b9; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .btn-secondary { background: transparent; color: var(--primary); border: 2px solid var(--primary); }
+        .btn-secondary:hover { background: var(--primary); color: white; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+
+        .current-order { margin-top: 20px; text-align: center; font-size: 1rem; color: var(--text); }
+
+        .order-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .order-table th, .order-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .order-table th { background: #f8f9fa; color: var(--primary); font-weight: 600; }
+        .order-table tr:hover { background: #f1f3f5; }
+
+        .food-summary { margin-top: 30px; }
+        .food-summary ul { list-style: none; padding: 0; }
+        .food-summary li { font-size: 1rem; color: var(--text); margin-bottom: 10px; }
+    </style>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h1 class="h3 mb-0">
+                        <i class="bi bi-pencil-square me-2"></i>Edit Profile
+                    </h1>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="mb-3">
+                            {{ form.first_name.label(class="form-label") }}
+                            {{ form.first_name(class="form-control") }}
+                            {% for error in form.first_name.errors %}
+                                <small class="text-danger">{{ error }}</small>
+                            {% endfor %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.last_name.label(class="form-label") }}
+                            {{ form.last_name(class="form-control") }}
+                            {% for error in form.last_name.errors %}
+                                <small class="text-danger">{{ error }}</small>
+                            {% endfor %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.phone_number.label(class="form-label") }}
+                            {{ form.phone_number(class="form-control") }}
+                            {% for error in form.phone_number.errors %}
+                                <small class="text-danger">{{ error }}</small>
+                            {% endfor %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.date_of_birth.label(class="form-label") }}
+                            {{ form.date_of_birth(class="form-control") }}
+                            {% for error in form.date_of_birth.errors %}
+                                <small class="text-danger">{{ error }}</small>
+                            {% endfor %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="profile_photo" class="form-label">Profile Photo</label>
+                            <input type="file" name="profile_photo" id="profile_photo" class="form-control" accept="image/*">
+                            {% if current_user.profile_photo %}
+                                <small class="form-text text-muted">Current photo: 
+                                    <img src="{{ url_for('static', filename='uploads/' + current_user.profile_photo) }}" 
+                                         alt="Current Photo" style="max-width: 50px; border-radius: 50%; vertical-align: middle;">
+                                </small>
+                            {% endif %}
+                        </div>
+
+                        <div class="d-grid">
+                            {{ form.submit(class="btn btn-success") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

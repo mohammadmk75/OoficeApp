@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Tasks</h2>
+<a href="{{ url_for('main.add_task') }}" class="button">Add Task</a>
+
+<ul>
+    {% for task in tasks %}
+        <li>{{ task.title }} - Status: {{ task.status }}
+            <a href="{{ url_for('main.view_tasks', task_id=task.id) }}">View</a>
+        </li>
+    {% endfor %}
+</ul>
+{% endblock %}

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company App</title>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Bootstrap Select CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/css/bootstrap-select.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f4f7fa;
+            margin: 0;
+            padding: 0;
+        }
+
+        nav {
+            background-color: #007bff;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        nav div {
+            display: flex;
+            align-items: center;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 15px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        nav a:hover {
+            text-decoration: underline;
+        }
+
+        .user-profile {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .user-profile img {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            object-fit: cover;
+            vertical-align: middle;
+        }
+
+        .notification-bell {
+            position: relative;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            margin: 0 15px;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .notification-bell .badge {
+            position: absolute;
+            top: -5px;
+            right: -10px;
+            background-color: #dc3545;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+        }
+
+        .notification-bar {
+            position: fixed;
+            top: 50px;
+            right: 20px;
+            width: 300px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1000;
+        }
+
+        .notification-bar.show {
+            display: block;
+        }
+
+        .notification-bar .header {
+            background-color: #007bff;
+            color: white;
+            padding: 10px;
+            font-weight: 500;
+            text-align: center;
+            position: relative;
+        }
+
+        .notification-bar .close-btn {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .notification-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .notification-item:last-child {
+            border-bottom: none;
+        }
+
+        .notification-item p {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #2d3436;
+        }
+
+        .notification-item .time {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+        }
+
+        .alert {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .alert-success { background-color: #28a745; color: white; }
+        .alert-danger { background-color: #dc3545; color: white; }
+        .alert-info { background-color: #17a2b8; color: white; }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        header h1 {
+            font-size: 36px;
+            font-weight: 700;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation Bar -->
+    <nav>
+        <div>
+            <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('main.view_requests') }}">Requests</a>
+            <a href="{{ url_for('main.lunch') }}">Lunch</a>
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('main.send_request') }}"><i class="bi bi-plus-circle me-1"></i> Send New Request</a>
+            {% endif %}
+        </div>
+        <div>
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('main.profile') }}" class="user-profile">
+                    {% if current_user.profile_photo %}
+                        <img src="{{ url_for('static', filename='uploads/' + current_user.profile_photo) }}" alt="Profile Photo">
+                    {% endif %}
+                    {{ current_user.first_name }}
+                </a>
+                <a href="{{ url_for('main.logout') }}">Logout</a>
+                <span class="notification-bell" id="notification-bell">
+                    <i class="bi bi-bell"></i>
+                    <span class="badge" id="notification-count" style="display: none;">0</span>
+                </span>
+            {% else %}
+                <a href="{{ url_for('main.login') }}">Login</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- Notification Bar -->
+    <div class="notification-bar" id="notification-bar">
+        <div class="header">
+            Notifications
+            <span class="close-btn" id="close-btn">×</span>
+        </div>
+        <div id="notification-list"></div>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content Block -->
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Bootstrap Select JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-select@1.14.0-beta3/dist/js/bootstrap-select.min.js"></script>
+
+    <script>
+        {% if current_user.is_authenticated %}
+        let timeoutId = null;
+        let isBarOpen = false;
+        let lastNotificationCount = 0;
+        let isInitialLoad = true;
+        const dingSound = new Audio("{{ url_for('static', filename='sounds/ding.mp3') }}");
+
+        // Show notification bar
+        function showNotifications() {
+            const bar = document.getElementById('notification-bar');
+            isBarOpen = true;
+            bar.classList.add('show');
+            updateNotifications();
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(hideNotifications, 5000);
+        }
+
+        // Hide notification bar and reset count
+        function hideNotifications() {
+            const bar = document.getElementById('notification-bar');
+            isBarOpen = false;
+            bar.classList.remove('show');
+            clearTimeout(timeoutId);
+
+            fetch('{{ url_for("main.mark_notifications_viewed") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const countElement = document.getElementById('notification-count');
+                    countElement.textContent = '0';
+                    countElement.style.display = 'none';
+                    lastNotificationCount = 0;
+                }
+            })
+            .catch(error => console.error('Error marking notifications viewed:', error));
+        }
+
+        // Toggle notification bar
+        function toggleNotifications(event) {
+            event.stopPropagation();
+            if (!isBarOpen) {
+                showNotifications();
+            } else {
+                hideNotifications();
+            }
+        }
+
+        // Event listeners
+        document.getElementById('notification-bell').addEventListener('click', toggleNotifications);
+        document.getElementById('close-btn').addEventListener('click', function(event) {
+            event.stopPropagation();
+            hideNotifications();
+        });
+
+        document.addEventListener('click', function(event) {
+            const bar = document.getElementById('notification-bar');
+            const bell = document.getElementById('notification-bell');
+            if (isBarOpen && !bar.contains(event.target) && !bell.contains(event.target)) {
+                hideNotifications();
+            }
+        });
+
+        function updateNotifications() {
+            fetch('{{ url_for("main.get_notifications") }}', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok: ' + response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Notifications:', data);
+                const countElement = document.getElementById('notification-count');
+                const listElement = document.getElementById('notification-list');
+
+                // Play sound only for new notifications after initial load
+                if (!isInitialLoad && data.count > lastNotificationCount && !isBarOpen) {
+                    dingSound.play().catch(error => console.error('Error playing sound:', error));
+                }
+                lastNotificationCount = data.count;
+                isInitialLoad = false;
+
+                // Update count
+                if (data.count > 0) {
+                    countElement.textContent = data.count;
+                    countElement.style.display = 'inline-flex';
+                } else {
+                    countElement.textContent = '0';
+                    countElement.style.display = 'none';
+                    listElement.innerHTML = '<p style="padding: 10px; text-align: center;">No new notifications</p>';
+                    return;
+                }
+
+                // Populate notification list
+                listElement.innerHTML = '';
+                data.notifications.forEach(notif => {
+                    const item = document.createElement('div');
+                    item.className = 'notification-item';
+                    item.innerHTML = `
+                        <p>${notif.message}</p>
+                        <p class="time">${notif.time}</p>
+                    `;
+                    listElement.appendChild(item);
+                });
+            })
+            .catch(error => console.error('Error fetching notifications:', error));
+        }
+
+        // Run on page load and every 30 seconds
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page loaded, fetching notifications');
+            updateNotifications();
+            setInterval(updateNotifications, 36000000);
+            $('.selectpicker').selectpicker();
+        });
+        {% endif %}
+    </script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Profile Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h1 class="h3 mb-0"><i class="bi bi-person-fill me-2"></i>User Profile</h1>
+                </div>
+                <div class="card-body">
+                    {% if user.profile_photo %}
+                        <div class="text-center mb-3">
+                            <img src="{{ url_for('static', filename='uploads/' + user.profile_photo) }}" 
+                                 alt="Profile Photo" 
+                                 style="max-width: 100px; border-radius: 50%;">
+                        </div>
+                    {% endif %}
+                    <div class="row mb-3">
+                        <div class="col-md-3 fw-bold">Name:</div>
+                        <div class="col-md-9">{{ user.first_name }} {{ user.last_name }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 fw-bold">Email:</div>
+                        <div class="col-md-9">{{ user.email }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 fw-bold">Phone:</div>
+                        <div class="col-md-9">{{ user.phone_number }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-3 fw-bold">Date of Birth:</div>
+                        <div class="col-md-9">{{ user.date_of_birth }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Cards -->
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="bi bi-pencil-square display-4 text-success mb-3"></i>
+                            <h5 class="card-title">Edit Profile</h5>
+                            <a href="{{ url_for('main.edit_profile') }}" 
+                               class="btn btn-outline-success stretched-link">Go</a>
+                        </div>
+                    </div>
+                </div>
+                {% if current_user.is_superuser or current_user.group == 'CEO' %}
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="bi bi-envelope-fill display-4 text-primary mb-3"></i>
+                            <h5 class="card-title">Invite</h5>
+                            <a href="{{ url_for('main.send_register_link') }}" 
+                               class="btn btn-outline-primary stretched-link">Send</a>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="bi bi-speedometer2 display-4 text-info mb-3"></i>
+                            <h5 class="card-title">Dashboard</h5>
+                            <a href="{{ url_for('main.dashboard') }}" 
+                               class="btn btn-outline-info stretched-link">View</a>
+                        </div>
+                    </div>
+                </div>
+                <!-- New Users Card -->
+                {% if current_user.is_superuser or current_user.group == 'CEO' %}
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="bi bi-people-fill display-4 text-warning mb-3"></i>
+                            <h5 class="card-title">Users</h5>
+                            <a href="{{ url_for('main.list_users') }}" 
+                               class="btn btn-outline-warning stretched-link">Manage</a>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

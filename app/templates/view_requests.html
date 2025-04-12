@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2><i class="bi bi-envelope"></i> Request Management</h2>
+    <hr class="section-separator">
+
+    <!-- Sent Requests -->
+    <div class="requests-section">
+        <div class="section-header">
+            <h3>Sent Requests</h3>
+            <div class="section-actions">
+                <a href="{{ url_for('main.send_request') }}" class="btn btn-primary"><i class="bi bi-plus-circle"></i> New Request</a>
+                <a href="{{ url_for('main.sent_requests_archive') }}" class="btn btn-info"><i class="bi bi-archive"></i> View Archive</a>
+            </div>
+        </div>
+        <hr class="section-separator">
+        <div class="search-section">
+            <input type="text" id="sent-search" placeholder="Search sent requests..." class="form-control">
+        </div>
+        <div class="table-container">
+            <table class="request-table">
+                <thead>
+                    <tr>
+                        <th data-sort="title">Title <i class="bi bi-arrow-down-up"></i></th>
+                        <th data-sort="to">To <i class="bi bi-arrow-down-up"></i></th>
+                        <th data-sort="created_at">Date <i class="bi bi-arrow-down-up"></i></th>
+                        <th data-sort="status">Status <i class="bi bi-arrow-down-up"></i></th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="sent-table-body">
+                    {% if sent_requests %}
+                        {% for req in sent_requests %}
+                            <tr>
+                                <td>{{ req.title }}</td>
+                                <td>{% if req.receiver %}{{ req.receiver.first_name }} {{ req.receiver.last_name }}{% else %}{{ req.department }}{% endif %}</td>
+                                <td>{{ req.created_at.strftime('%Y-%m-%d %H:%M IRST') }}</td>
+                                <td class="status-{{ req.status }}">{{ req.status | capitalize }}</td>
+                                <td>
+                                    <a href="{{ url_for('main.view_request', request_id=req.id) }}" class="btn btn-info btn-sm"><i class="bi bi-eye"></i> View</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="no-data">No sent requests today. <a href="{{ url_for('main.send_request') }}">Send a new request now!</a></td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <div class="pagination" id="sent-pagination">
+            <button class="btn btn-secondary" id="sent-prev-page" disabled><i class="bi bi-chevron-left"></i> Previous</button>
+            <span>Page <span id="sent-current-page">1</span> of <span id="sent-total-pages">1</span></span>
+            <button class="btn btn-secondary" id="sent-next-page"><i class="bi bi-chevron-right"></i> Next</button>
+        </div>
+    </div>
+
+    <hr class="section-separator">
+
+    <!-- Received Requests -->
+    <div class="requests-section">
+        <div class="section-header">
+            <h3>Received Requests</h3>
+            <a href="{{ url_for('main.requests_archive') }}" class="btn btn-info"><i class="bi bi-archive"></i> View Archive</a>
+        </div>
+        <hr class="section-separator">
+        <div class="search-section">
+            <input type="text" id="received-search" placeholder="Search received requests..." class="form-control">
+        </div>
+        <div class="table-container">
+            <table class="request-table">
+                <thead>
+                    <tr>
+                        <th data-sort="title">Title <i class="bi bi-arrow-down-up"></i></th>
+                        <th data-sort="from">From <i class="bi bi-arrow-down-up"></i></th>
+                        <th data-sort="created_at">Date <i class="bi bi-arrow-down-up"></i></th>
+                        <th data-sort="status">Status <i class="bi bi-arrow-down-up"></i></th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="received-table-body">
+                    {% if received_requests %}
+                        {% for req in received_requests %}
+                            <tr class="{% if not req.is_read %}unread{% endif %}">
+                                <td>{{ req.title }}</td>
+                                <td>{{ req.sender.first_name }} {{ req.sender.last_name }}</td>
+                                <td>{{ req.created_at.strftime('%Y-%m-%d %H:%M IRST') }}</td>
+                                <td class="status-{{ req.status }}">{{ req.status | capitalize }}</td>
+                                <td>
+                                    <a href="{{ url_for('main.view_request', request_id=req.id) }}" class="btn btn-info btn-sm"><i class="bi bi-eye"></i> View</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="no-data">No unread received requests.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <div class="pagination" id="received-pagination">
+            <button class="btn btn-secondary" id="received-prev-page" disabled><i class="bi bi-chevron-left"></i> Previous</button>
+            <span>Page <span id="received-current-page">1</span> of <span id="received-total-pages">1</span></span>
+            <button class="btn btn-secondary" id="received-next-page"><i class="bi bi-chevron-right"></i> Next</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Sorting Functionality
+    function setupSorting(tableId) {
+        document.querySelectorAll(`#${tableId} th[data-sort]`).forEach(th => {
+            th.addEventListener('click', () => {
+                const field = th.getAttribute('data-sort');
+                const tbody = document.getElementById(`${tableId}-body`);
+                const rows = Array.from(tbody.querySelectorAll('tr:not(.no-data)'));
+                const isAscending = th.classList.toggle('asc');
+                
+                rows.sort((a, b) => {
+                    const aValue = a.querySelector(`td:nth-child(${Array.from(th.parentElement.children).indexOf(th) + 1})`).textContent;
+                    const bValue = b.querySelector(`td:nth-child(${Array.from(th.parentElement.children).indexOf(th) + 1})`).textContent;
+                    return isAscending ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+                });
+
+                rows.forEach(row => tbody.appendChild(row));
+                th.querySelector('i').classList.toggle('bi-arrow-up', isAscending);
+                th.querySelector('i').classList.toggle('bi-arrow-down', !isAscending);
+            });
+        });
+    }
+
+    // Search and Pagination Functionality
+    function setupTableControls(tableId, searchId, prevId, nextId, currentPageId, totalPagesId) {
+        const rowsPerPage = 10;
+        let currentPage = 1;
+
+        function updatePagination() {
+            const tbody = document.getElementById(`${tableId}-body`);
+            const rows = Array.from(tbody.querySelectorAll('tr:not(.no-data)')).filter(row => row.style.display !== 'none');
+            const totalPages = Math.ceil(rows.length / rowsPerPage);
+            document.getElementById(totalPagesId).textContent = totalPages || 1;
+            document.getElementById(currentPageId).textContent = currentPage;
+
+            rows.forEach((row, index) => {
+                row.style.display = (index >= (currentPage - 1) * rowsPerPage && index < currentPage * rowsPerPage) ? '' : 'none';
+            });
+
+            document.getElementById(prevId).disabled = currentPage === 1;
+            document.getElementById(nextId).disabled = currentPage === totalPages || totalPages === 0;
+        }
+
+        document.getElementById(searchId).addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const rows = document.querySelectorAll(`#${tableId}-body tr:not(.no-data)`);
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+            currentPage = 1; // Reset to first page on search
+            updatePagination();
+        });
+
+        document.getElementById(prevId).addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                updatePagination();
+            }
+        });
+
+        document.getElementById(nextId).addEventListener('click', () => {
+            const totalPages = parseInt(document.getElementById(totalPagesId).textContent);
+            if (currentPage < totalPages) {
+                currentPage++;
+                updatePagination();
+            }
+        });
+
+        updatePagination(); // Initial setup
+    }
+
+    // Initialize for both tables
+    setupSorting('sent-table');
+    setupSorting('received-table');
+    setupTableControls('sent-table', 'sent-search', 'sent-prev-page', 'sent-next-page', 'sent-current-page', 'sent-total-pages');
+    setupTableControls('received-table', 'received-search', 'received-prev-page', 'received-next-page', 'received-current-page', 'received-total-pages');
+</script>
+
+<style>
+    :root {
+        --primary: #2c3e50;
+        --secondary: #3498db;
+        --accent: #e74c3c;
+        --background: #f5f6fa;
+        --card-bg: #ffffff;
+        --text: #2d3436;
+        --muted: #7f8c8d;
+    }
+
+    .container { max-width: 1400px; margin: 0 auto; padding: 40px 20px; }
+    h2 { font-size: 2.5rem; color: var(--primary); margin-bottom: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .section-separator { border: 0; height: 2px; background: linear-gradient(to right, var(--secondary), transparent); margin: 20px 0; }
+    .requests-section { background: var(--card-bg); padding: 20px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    h3 { font-size: 1.8rem; color: var(--primary); font-weight: 600; }
+    .section-actions { display: flex; gap: 10px; }
+
+    .search-section { margin: 20px 0; }
+    .form-control { padding: 10px 15px; border-radius: 25px; border: 1px solid var(--muted); width: 100%; max-width: 400px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05); }
+    .form-control:focus { border-color: var(--secondary); outline: none; box-shadow: 0 0 5px rgba(52, 152, 219, 0.5); }
+
+    .table-container { overflow-x: auto; }
+    .request-table { width: 100%; border-collapse: collapse; }
+    .request-table th, .request-table td { padding: 15px; text-align: left; border-bottom: 1px solid #e9ecef; }
+    .request-table th { background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+    .request-table th i { margin-left: 5px; font-size: 0.9rem; }
+    .request-table th.asc i.bi-arrow-down-up { display: none; }
+    .request-table th i.bi-arrow-up, .request-table th i.bi-arrow-down { display: none; }
+    .request-table th.asc i.bi-arrow-up { display: inline; }
+    .request-table th:not(.asc) i.bi-arrow-down { display: inline; }
+    .request-table tr:hover { background: #f8f9fa; }
+    .request-table tr.unread { background: #f8e1e1; }
+    .request-table .no-data { text-align: center; color: var(--muted); padding: 30px; }
+    .status-pending { color: #e67e22; font-weight: 500; }
+    .status-in_progress { color: #3498db; font-weight: 500; }
+    .status-resolved { color: #27ae60; font-weight: 500; }
+
+    .btn { padding: 10px 20px; border-radius: 25px; font-weight: 500; text-decoration: none; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-primary { background: var(--secondary); color: white; border: none; }
+    .btn-primary:hover { background: #2980b9; transform: translateY(-2px); }
+    .btn-info { background: #27ae60; color: white; border: none; padding: 5px 10px; border-radius: 15px; }
+    .btn-info:hover { background: #219653; }
+    .btn-sm { font-size: 0.9rem; }
+
+    .pagination { text-align: center; margin-top: 20px; display: flex; justify-content: center; align-items: center; gap: 15px; }
+    .btn-secondary { background: var(--muted); color: white; border: none; padding: 8px 15px; border-radius: 20px; }
+    .btn-secondary:hover { background: #6c757d; }
+    .btn-secondary:disabled { background: #d3d3d3; cursor: not-allowed; }
+</style>
+{% endblock %}

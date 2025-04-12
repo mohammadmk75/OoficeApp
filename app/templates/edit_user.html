@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Edit User</h1>
+    <form method="POST">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="first_name" class="form-label">First Name</label>
+                    <input type="text" class="form-control" id="first_name" name="first_name" value="{{ user.first_name }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="last_name" class="form-label">Last Name</label>
+                    <input type="text" class="form-control" id="last_name" name="last_name" value="{{ user.last_name }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="phone_number" class="form-label">Phone Number</label>
+                    <input type="text" class="form-control" id="phone_number" name="phone_number" value="{{ user.phone_number }}">
+                </div>
+                <div class="mb-3">
+                    <label for="date_of_birth" class="form-label">Date of Birth</label>
+                    <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" value="{{ user.date_of_birth }}">
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="group" class="form-label">Group</label>
+                    <select class="form-select" id="group" name="group" required>
+                        <option value="CEO" {% if user.group == 'CEO' %}selected{% endif %}>CEO</option>
+                        <option value="Managers" {% if user.group == 'Managers' %}selected{% endif %}>Managers</option>
+                        <option value="Engineering and Marketing" {% if user.group == 'Engineering and Marketing' %}selected{% endif %}>Engineering and Marketing</option>
+                        <option value="Finance" {% if user.group == 'Finance' %}selected{% endif %}>Finance</option>
+                        <option value="Office" {% if user.group == 'Office' %}selected{% endif %}>Office</option>
+                        <option value="Admin" {% if user.group == 'Admin' %}selected{% endif %}>Admin</option>
+                    </select>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="is_teamlead" name="is_teamlead" {% if user.is_teamlead %}checked{% endif %}>
+                    <label class="form-check-label" for="is_teamlead">Team Lead</label>
+                </div>
+                {% if user.group == 'Admin' %}
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="is_superuser" name="is_superuser" {% if user.is_superuser %}checked{% endif %}>
+                    <label class="form-check-label" for="is_superuser">Super User</label>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save"></i> Save Changes
+            </button>
+            <a href="{{ url_for('main.list_users') }}" class="btn btn-secondary">
+                <i class="bi bi-x-circle"></i> Cancel
+            </a>
+        </div>
+    </form>
+</div>
+<style>
+    /* Custom styles for the users page */
+.table-hover tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.table-bordered {
+    border: 1px solid #dee2e6;
+}
+
+.table-dark {
+    background-color: #343a40;
+    color: #fff;
+}
+
+.btn-outline-primary {
+    border-color: #007bff;
+    color: #007bff;
+}
+
+.btn-outline-primary:hover {
+    background-color: #007bff;
+    color: #fff;
+}
+
+.form-label {
+    font-weight: 500;
+}
+
+.form-control, .form-select {
+    border-radius: 0.25rem;
+    border: 1px solid #ced4da;
+}
+
+.form-check-input {
+    margin-top: 0.3rem;
+}
+
+.mt-5 {
+    margin-top: 3rem !important;
+}
+
+.mb-4 {
+    margin-bottom: 1.5rem !important;
+}
+
+/* Search bar styling */
+#searchInput {
+    max-width: 400px;
+    margin: 0 auto 20px auto;
+}
+</style>
+{% endblock %}

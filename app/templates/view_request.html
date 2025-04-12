@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2><i class="bi bi-envelope-open"></i> Request Details</h2>
+    <hr class="section-separator">
+
+    <div class="request-section">
+        <!-- Request Header -->
+        <div class="section-header">
+            <h3>{{ request.title }}</h3>
+            <div class="request-meta">
+                <span class="request-id">Request ID: #{{ request.id }}</span>
+                <span class="status-badge status-{{ request.status }}">{{ request.status | capitalize }}</span>
+            </div>
+        </div>
+        <hr class="section-separator">
+
+        <!-- Request Details -->
+        <div class="request-details">
+            <div class="details-grid">
+                <div class="detail-item">
+                    <span class="detail-label">From:</span>
+                    <span class="detail-value">{{ request.sender.first_name }} {{ request.sender.last_name }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">To:</span>
+                    <span class="detail-value">{% if request.receiver %}{{ request.receiver.first_name }} {{ request.receiver.last_name }}{% else %}{{ request.department }}{% endif %}</span>
+                </div>
+                <div class="detail-item full-width">
+                    <span class="detail-label">Description:</span>
+                    <span class="detail-value">{{ request.text }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Sent:</span>
+                    <span class="detail-value">{{ request.created_at.strftime('%Y-%m-%d %H:%M IRST') }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Last Updated:</span>
+                    <span class="detail-value">{{ request.last_updated.strftime('%Y-%m-%d %H:%M IRST') }}</span>
+                </div>
+                {% if request.attachment %}
+                <div class="detail-item full-width">
+                    <span class="detail-label">Attachment:</span>
+                    <span class="detail-value">
+                        <a href="{{ url_for('main.download_file', filename=request.attachment) }}" class="btn btn-info btn-sm"><i class="bi bi-download"></i> Download</a>
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <hr class="section-separator">
+
+        <!-- Replies Timeline -->
+        <div class="replies-section">
+            <h4>Conversation History</h4>
+            <div class="timeline">
+                {% if replies %}
+                    {% for reply in replies %}
+                        <div class="timeline-item">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-content">
+                                <div class="reply-header">
+                                    <span class="reply-sender">{{ reply.sender.first_name }} {{ reply.sender.last_name }}</span>
+                                    <span class="reply-date">{{ reply.created_at.strftime('%Y-%m-%d %H:%M IRST') }}</span>
+                                </div>
+                                <p class="reply-text">{{ reply.text }}</p>
+                                {% if reply.attachment %}
+                                    <p class="reply-attachment">
+                                        <strong>Attachment:</strong> 
+                                        <a href="{{ url_for('main.download_file', filename=reply.attachment) }}" class="btn btn-info btn-sm"><i class="bi bi-download"></i> Download</a>
+                                    </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="no-replies">No replies yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        <hr class="section-separator">
+
+        <!-- Reply Form -->
+        <form method="POST" action="{{ url_for('main.view_request', request_id=request.id) }}" enctype="multipart/form-data" class="reply-form">
+            <div class="form-group">
+                <label for="reply_text"><i class="bi bi-comment"></i> Add Reply</label>
+                <textarea id="reply_text" name="reply_text" class="form-control" rows="4" placeholder="Type your reply here..." required></textarea>
+            </div>
+            <div class="form-group">
+                <label for="attachment"><i class="bi bi-paperclip"></i> Attach File</label>
+                <input type="file" id="attachment" name="attachment" class="form-control-file">
+            </div>
+            {% if current_user.id == request.receiver_id or current_user.group == request.department or current_user.is_superuser %}
+                <div class="form-group">
+                    <label for="status"><i class="bi bi-tasks"></i> Update Status</label>
+                    <select id="status" name="status" class="form-control">
+                        <option value="pending" {% if request.status == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="approved" {% if request.status == 'approved' %}selected{% endif %}>Approved</option>
+                        <option value="rejected" {% if request.status == 'rejected' %}selected{% endif %}>Rejected</option>
+                    </select>
+                </div>
+            {% endif %}
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-reply"></i> Send Reply</button>
+                <a href="{{ url_for('main.view_requests') }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Back to Requests</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    :root {
+        --primary: #2c3e50;
+        --secondary: #3498db;
+        --accent: #e74c3c;
+        --background: #f5f6fa;
+        --card-bg: #ffffff;
+        --text: #2d3436;
+        --muted: #7f8c8d;
+        --success: #27ae60;
+    }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+    h2 { font-size: 2.2rem; color: var(--primary); margin-bottom: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .section-separator { border: 0; height: 2px; background: linear-gradient(to right, var(--secondary), transparent); margin: 25px 0; }
+    .request-section { background: var(--card-bg); padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+
+    /* Header */
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    h3 { font-size: 1.8rem; color: var(--primary); font-weight: 600; margin: 0; }
+    .request-meta { display: flex; align-items: center; gap: 15px; }
+    .request-id { font-size: 0.9rem; color: var(--muted); }
+    .status-badge { padding: 5px 10px; border-radius: 15px; font-size: 0.9rem; color: white; }
+    .status-pending { background: #e67e22; }
+    .status-approved { background: var(--success); }
+    .status-rejected { background: var(--accent); }
+
+    /* Details */
+    .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .detail-item { display: flex; flex-direction: column; }
+    .detail-item.full-width { grid-column: span 2; }
+    .detail-label { font-weight: 600; color: var(--text); font-size: 0.95rem; margin-bottom: 5px; }
+    .detail-value { color: var(--muted); font-size: 1rem; }
+
+    /* Replies */
+    h4 { font-size: 1.4rem; color: var(--primary); font-weight: 600; margin-bottom: 20px; }
+    .timeline { position: relative; padding-left: 30px; }
+    .timeline-item { position: relative; margin-bottom: 20px; }
+    .timeline-dot { position: absolute; left: -25px; top: 10px; width: 10px; height: 10px; background: var(--secondary); border-radius: 50%; }
+    .timeline-content { background: #f8f9fa; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .reply-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .reply-sender { font-weight: 600; color: var(--text); }
+    .reply-date { font-size: 0.85rem; color: var(--muted); }
+    .reply-text { font-size: 0.95rem; color: var(--text); margin: 0; }
+    .reply-attachment { margin-top: 10px; }
+    .no-replies { color: var(--muted); font-style: italic; text-align: center; padding: 20px; }
+
+    /* Form */
+    .reply-form { margin-top: 20px; }
+    .form-group { margin-bottom: 25px; }
+    .form-group label { font-size: 1.1rem; color: var(--text); font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .form-control, .form-control-file { width: 100%; padding: 12px; font-size: 1rem; border: 1px solid #d1d3e2; border-radius: 8px; transition: all 0.3s ease; }
+    .form-control:focus, .form-control-file:focus { outline: none; border-color: var(--secondary); box-shadow: 0 0 5px rgba(52, 152, 219, 0.3); }
+    .form-control-file { padding: 8px; }
+    .form-actions { display: flex; justify-content: flex-end; gap: 15px; margin-top: 30px; }
+    .btn { padding: 12px 25px; border-radius: 25px; font-weight: 500; text-decoration: none; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-primary { background: var(--secondary); color: white; border: none; }
+    .btn-primary:hover { background: #2980b9; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .btn-secondary { background: transparent; color: var(--primary); border: 2px solid var(--primary); }
+    .btn-secondary:hover { background: var(--primary); color: white; transform: translateY(-2px); }
+    .btn-info { background: var(--success); color: white; border: none; padding: 6px 12px; border-radius: 15px; }
+    .btn-info:hover { background: #219653; }
+    .btn-sm { font-size: 0.9rem; }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+        .details-grid { grid-template-columns: 1fr; }
+        .detail-item.full-width { grid-column: span 1; }
+        .form-actions { flex-direction: column; gap: 10px; }
+        .btn { width: 100%; justify-content: center; }
+    }
+</style>
+{% endblock %}

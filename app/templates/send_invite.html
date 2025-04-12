@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Page Header -->
+    <div class="text-center mb-4">
+        <h2 class="text-primary"><i class="bi bi-person-plus me-2"></i> Invite a New User</h2>
+        <p class="text-muted">Send an invitation to a new user.</p>
+    </div>
+
+    <!-- Invitation Form -->
+    <div class="card shadow-lg">
+        <div class="card-body p-4">
+            <form action="{{ url_for('main.send_register_link') }}" method="POST">
+                {{ form.hidden_tag() }}  <!-- CSRF token -->
+
+                <!-- Email Input -->
+                <div class="mb-3">
+                    <label for="email" class="form-label"><i class="bi bi-envelope"></i> Email Address:</label>
+                    {{ form.email(class="form-control", placeholder="Enter user email", required=True) }}
+                </div>
+
+                <!-- Submit Button -->
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-send"></i> Send Invitation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Styles -->
+<style>
+    .container { max-width: 600px; }
+    .card { border-radius: 10px; }
+    .form-label { font-weight: bold; color: #2c3e50; }
+    .form-control, .form-select { border-radius: 8px; padding: 12px; }
+    .btn { border-radius: 25px; font-size: 1.1rem; }
+    .btn-primary:hover { background: #0056b3; }
+</style>
+{% endblock %}

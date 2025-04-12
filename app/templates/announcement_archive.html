@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2 class="page-title"><i class="bi bi-archive-fill me-2"></i> Announcement Archive</h2>
+    <hr class="section-separator">
+
+    <!-- Search Bar Section -->
+    <div class="search-container mb-5">
+        <div class="search-box">
+            <input type="text" id="searchInput" class="search-input" placeholder="Search by topic, author, or content..." oninput="searchAnnouncements()">
+            <button class="search-clear-btn" onclick="clearSearch()">
+                <i class="bi bi-x-lg"></i> Clear
+            </button>
+        </div>
+        <p id="searchFeedback" class="text-center mt-3 no-results-feedback" style="display: none;">No results found for your search.</p>
+    </div>
+
+    {% if archive_by_month %}
+        {% for month, announcements in archive_by_month.items() %}
+            <div class="archive-month">
+                <div class="section-header">
+                    <h3><i class="bi bi-calendar3 me-2"></i> {{ month }}</h3>
+                </div>
+                <div class="announcements" id="announcements-{{ month|replace(' ', '-') }}">
+                    {% for announcement in announcements %}
+                        <div class="announcement-card shadow-lg" data-topic="{{ announcement.topic | lower }}" data-text="{{ announcement.text | lower }}" data-author="{{ announcement.user.first_name|lower }} {{ announcement.user.last_name|lower }}">
+                            <div class="announcement-header">
+                                <h5><i class="bi bi-megaphone me-2"></i> {{ announcement.topic }}</h5>
+                                <span class="announcement-date">
+                                    <i class="bi bi-clock me-1"></i> {{ announcement.created_at.strftime('%Y-%m-%d %H:%M IRST') }}
+                                </span>
+                            </div>
+                            <p class="author">
+                                <i class="bi bi-person-circle me-1"></i> <strong>By:</strong> {{ announcement.user.first_name }} {{ announcement.user.last_name }}
+                            </p>
+                            <p class="announcement-text">{{ announcement.text }}</p>
+                            {% if announcement.attachment %}
+                                <p class="attachment">
+                                    <i class="bi bi-paperclip me-2"></i>
+                                    <strong>Attachment:</strong> 
+                                    <a href="{{ url_for('main.download_file', filename=announcement.attachment) }}" class="btn btn-info btn-sm">
+                                        <i class="bi bi-download"></i> Download
+                                    </a>
+                                </p>
+                            {% endif %}
+                            <p class="target-group">
+                                <i class="bi bi-people-fill me-1"></i> <strong>Target:</strong> {{ announcement.target_group or 'All' }}
+                            </p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-warning text-center">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> No archived announcements available.
+        </div>
+    {% endif %}
+</div>
+
+<!-- Custom Styles -->
+<style>
+    :root {
+        --primary: #34495e;
+        --secondary: #3498db;
+        --accent: #e74c3c;
+        --success: #27ae60;
+        --warning: #f39c12;
+        --background: #f8f9fa;
+        --card-bg: #ffffff;
+        --text: #2d3436;
+        --muted: #7f8c8d;
+        --shadow: rgba(0, 0, 0, 0.1);
+        --highlight: rgba(0, 0, 0, 0.2);
+    }
+
+    .container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 40px 20px;
+        background: var(--background);
+        border-radius: 12px;
+    }
+
+    /* Header Styling */
+    .page-title {
+        font-size: 2.4rem;
+        color: var(--primary);
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .section-separator {
+        border: 0;
+        height: 2px;
+        background: linear-gradient(to right, var(--secondary), transparent);
+        margin-bottom: 40px;
+    }
+
+    /* Search Bar */
+    .search-container {
+        margin-bottom: 30px;
+        text-align: center;
+    }
+
+    .search-box {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        width: 100%;
+        max-width: 650px;
+        border-radius: 30px;
+        background-color: #fff;
+        box-shadow: 0 10px 20px var(--shadow);
+        padding: 10px;
+        transition: all 0.3s ease;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 12px 20px;
+        border-radius: 30px;
+        border: 1px solid #ddd;
+        font-size: 1.1rem;
+        color: var(--text);
+        outline: none;
+        transition: border-color 0.3s;
+    }
+
+    .search-input:focus {
+        border-color: var(--secondary);
+    }
+
+    .search-clear-btn {
+        background: none;
+        border: none;
+        font-size: 1.2rem;
+        color: var(--primary);
+        position: absolute;
+        right: 12px;
+        cursor: pointer;
+        transition: color 0.3s ease;
+    }
+
+    .search-clear-btn:hover {
+        color: var(--accent);
+    }
+
+    .no-results-feedback {
+        font-size: 1rem;
+        color: var(--muted);
+        font-style: italic;
+    }
+
+    /* Announcement Cards */
+    .announcements {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 30px;
+    }
+
+    .announcement-card {
+        padding: 20px;
+        border-radius: 15px;
+        background: var(--card-bg);
+        border-left: 6px solid var(--secondary);
+        box-shadow: 0 6px 20px var(--highlight);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .announcement-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 30px var(--highlight);
+    }
+
+    .announcement-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .announcement-header h5 {
+        font-size: 1.6rem;
+        font-weight: 600;
+        color: var(--primary);
+        margin: 0;
+        transition: color 0.3s ease;
+    }
+
+    .announcement-header h5:hover {
+        color: var(--secondary);
+    }
+
+    .announcement-date {
+        font-size: 0.95rem;
+        color: var(--muted);
+    }
+
+    .author, .announcement-text, .attachment, .target-group {
+        font-size: 1.1rem;
+        color: var(--text);
+        margin: 12px 0;
+    }
+
+    .attachment a {
+        background: var(--secondary);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 50px;
+        text-decoration: none;
+        font-size: 0.95rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: background-color 0.3s ease;
+    }
+
+    .attachment a:hover {
+        background: #2980b9;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .announcements {
+            grid-template-columns: 1fr;
+        }
+
+        .announcement-header h5 {
+            font-size: 1.3rem;
+        }
+    }
+</style>
+
+<!-- JavaScript for Search -->
+<script>
+    function searchAnnouncements() {
+        const query = document.getElementById('searchInput').value.toLowerCase();
+        const announcements = document.querySelectorAll('.announcement-card');
+        let resultsFound = false;
+
+        announcements.forEach(function (announcement) {
+            const topic = announcement.getAttribute('data-topic');
+            const text = announcement.getAttribute('data-text');
+            const author = announcement.getAttribute('data-author');
+
+            if (topic.includes(query) || text.includes(query) || author.includes(query)) {
+                announcement.style.display = 'block';  // Show announcement
+                resultsFound = true;
+            } else {
+                announcement.style.display = 'none';  // Hide announcement
+            }
+        });
+
+        // Show feedback if no results found
+        const feedback = document.getElementById('searchFeedback');
+        if (resultsFound) {
+            feedback.style.display = 'none';
+        } else {
+            feedback.style.display = 'block';
+        }
+    }
+
+    // Clear search input and reset results
+    function clearSearch() {
+        document.getElementById('searchInput').value = '';
+        searchAnnouncements(); // Reset the search
+    }
+</script>
+
+{% endblock %}

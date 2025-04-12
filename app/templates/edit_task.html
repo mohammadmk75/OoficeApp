@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <h2><i class="fa fa-edit"></i> Edit Task</h2>
+        <hr class="section-separator">
+
+        <div class="form-section">
+            <div class="section-header">
+                <h3>Task Details</h3>
+            </div>
+            <hr class="section-separator">
+
+            <form method="POST" action="{{ url_for('main.edit_task', task_id=task.id) }}">
+                <!-- Title -->
+                <div class="form-group">
+                    <label for="title"><i class="fa fa-heading"></i> Title</label>
+                    <input type="text" id="title" name="title" class="form-control" value="{{ task.title }}" required>
+                </div>
+                <hr class="card-separator">
+
+                <!-- Description -->
+                <div class="form-group">
+                    <label for="description"><i class="fa fa-file-alt"></i> Description</label>
+                    <textarea id="description" name="description" class="form-control" rows="4">{{ task.description or '' }}</textarea>
+                </div>
+                <hr class="card-separator">
+
+                <!-- Assigned To -->
+                <div class="form-group">
+                    <label for="assigned_to"><i class="fa fa-user"></i> Assigned To</label>
+                    <select id="assigned_to" name="assigned_to" class="form-control">
+                        <option value="">Unassigned</option>
+                        {% for user in users %}
+                            <option value="{{ user.id }}" {% if user.id == task.assigned_to %}selected{% endif %}>
+                                {{ user.first_name }} {{ user.last_name }} ({{ user.email }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <hr class="card-separator">
+
+                <!-- Due Date -->
+                <div class="form-group">
+                    <label for="due_date"><i class="fa fa-calendar"></i> Due Date</label>
+                    <input type="date" id="due_date" name="due_date" class="form-control" value="{{ task.due_date.strftime('%Y-%m-%d') }}" required>
+                </div>
+                <hr class="card-separator">
+
+                <!-- Priority -->
+                <div class="form-group">
+                    <label for="priority"><i class="fa fa-exclamation-circle"></i> Priority</label>
+                    <select id="priority" name="priority" class="form-control" required>
+                        <option value="low" {% if task.priority == 'low' %}selected{% endif %}>Low</option>
+                        <option value="medium" {% if task.priority == 'medium' %}selected{% endif %}>Medium</option>
+                        <option value="high" {% if task.priority == 'high' %}selected{% endif %}>High</option>
+                    </select>
+                </div>
+                <hr class="card-separator">
+
+                <!-- Status -->
+                <div class="form-group">
+                    <label for="status"><i class="fa fa-tasks"></i> Status</label>
+                    <select id="status" name="status" class="form-control" required>
+                        <option value="pending" {% if task.status == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="in_progress" {% if task.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                        <option value="finished" {% if task.status == 'finished' %}selected{% endif %}>Finished</option>
+                        <option value="done" {% if task.status == 'done' %}selected{% endif %}>Done</option>
+                    </select>
+                </div>
+                <hr class="card-separator">
+
+                <!-- State Description -->
+                <div class="form-group">
+                    <label for="state_description"><i class="fa fa-comment"></i> State Description</label>
+                    <textarea id="state_description" name="state_description" class="form-control" rows="4" {% if task.assigned_to != current_user.id %}disabled{% endif %}>{{ task.state_description or '' }}</textarea>
+                    {% if task.assigned_to != current_user.id %}
+                        <small class="form-text text-muted">Only the assigned user can edit the state description.</small>
+                    {% endif %}
+                </div>
+                <hr class="card-separator">
+
+                <!-- Submit and Cancel Buttons -->
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary"><i class="fa fa-save"></i> Save Changes</button>
+                    <a href="{{ url_for('main.tasks') }}" class="btn btn-secondary"><i class="fa fa-times"></i> Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CSS -->
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --accent: #e74c3c;
+            --background: #f5f6fa;
+            --card-bg: #ffffff;
+            --text: #2d3436;
+            --muted: #7f8c8d;
+        }
+
+        .container {
+            max-width: 800px; /* Narrower for form */
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        h2 {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        h3 {
+            font-size: 1.8rem;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .section-separator {
+            border: 0;
+            height: 2px;
+            background: linear-gradient(to right, var(--secondary), transparent);
+            margin: 20px 0;
+        }
+
+        .card-separator {
+            border: 0;
+            height: 1px;
+            background: rgba(0, 0, 0, 0.1);
+            margin: 20px 0;
+        }
+
+        .form-section {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            font-size: 1.1rem;
+            color: var(--text);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            font-size: 1rem;
+            border: 1px solid var(--muted);
+            border-radius: 5px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--secondary);
+            box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 20px;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--secondary);
+            color: white;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+    </style>
+{% endblock %}

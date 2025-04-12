@@ -1,0 +1,469 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <h2><i class="bi bi-tachometer-alt"></i> Dashboard</h2>
+        <hr class="section-separator">
+
+        <!-- Dashboard Cards -->
+        <div class="dashboard-cards">
+            <div class="dashboard-card" onclick="toggleSection('announcements')">
+                <div class="card-header">
+                    <i class="bi bi-megaphone"></i>
+                    <h3>Announcements</h3>
+                    {% if new_announcements_count > 0 %}
+                        <span class="new-badge" id="announcements-count">{{ new_announcements_count }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="dashboard-card" onclick="toggleSection('sticky-notes')">
+                <div class="card-header">
+                    <i class="bi bi-sticky"></i>
+                    <h3>Sticky Notes</h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Announcements Section -->
+        <div id="announcements" class="expandable-section">
+            <div class="section-header">
+                <h3><i class="bi bi-megaphone"></i> Company Announcements</h3>
+                <div class="section-actions">
+                    <a href="{{ url_for('main.add_announcement') }}" class="btn btn-primary"><i class="bi bi-plus"></i> New Announcement</a>
+                    <a href="{{ url_for('main.announcement_archive') }}" class="btn btn-info"><i class="bi bi-archive"></i> View Archive</a>
+                </div>
+            </div>
+            <hr class="section-separator">
+            <div class="announcements">
+                {% if announcements %}
+                    {% for announcement in announcements %}
+                        <div class="announcement-card">
+                            <div class="announcement-header">
+                                <h5>{{ announcement.topic }}</h5>
+                                <span class="announcement-date">{{ announcement.created_at.strftime('%B %d, %Y %H:%M IRST') }}</span>
+                            </div>
+                            <div class="announcement-body">
+                                <p class="announcement-author"><strong>Posted by:</strong> {{ announcement.user.first_name }} {{ announcement.user.last_name }}</p>
+                                <p class="announcement-content">{{ announcement.text }}</p>
+                                {% if announcement.attachment %}
+                                    <p class="announcement-attachment">
+                                        <strong>Attachment:</strong>
+                                        <a href="{{ url_for('main.download_file', filename=announcement.attachment) }}" class="btn btn-outline-secondary btn-sm">
+                                            <i class="bi bi-download"></i> Download
+                                        </a>
+                                    </p>
+                                {% endif %}
+                                <p class="announcement-target"><strong>Target Audience:</strong> {{ announcement.target_group or 'All Employees' }}</p>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="no-content">
+                        <p>No active announcements at this time.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Sticky Notes Section -->
+        <div id="sticky-notes" class="expandable-section">
+            <div class="section-header">
+                <h3><i class="bi bi-sticky"></i> Sticky Notes</h3>
+                <form method="POST" action="{{ url_for('main.add_sticky_note') }}" class="add-note-form">
+                    <textarea name="content" placeholder="Add a new note..." class="form-control" rows="2" required></textarea>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-plus"></i> Add</button>
+                </form>
+            </div>
+            <hr class="section-separator">
+            <div class="sticky-notes">
+                {% for note in sticky_notes %}
+                    <div class="sticky-note">
+                        <!-- Edit Sticky Note Form -->
+                        <form method="POST" action="{{ url_for('main.edit_sticky_note', note_id=note.id) }}" class="edit-note-form">
+                            <textarea name="content" class="form-control sticky-content" rows="3">{{ note.content }}</textarea>
+                            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Save</button>
+                        </form>
+            
+                        <!-- Separate Delete Sticky Note Form -->
+                        <form method="POST" action="{{ url_for('main.delete_sticky_note', note_id=note.id) }}" class="delete-note-form">
+                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this note?');">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
+                        </form>
+                    </div>
+                {% endfor %}
+            </div>
+            
+            
+            
+            
+        </div>
+
+        <hr class="section-separator">
+
+        <!-- Task Board -->
+        <div class="task-board">
+            <div class="section-header">
+                <h3><i class="bi bi-list-task"></i> Task Board</h3>
+                <a href="{{ url_for('main.tasks') }}" class="btn btn-primary"><i class="bi bi-cog"></i> Manage Tasks</a>
+            </div>
+            <hr class="section-separator">
+            <div class="task-columns">
+                <!-- Pending Tasks -->
+                <div class="task-column" ondragover="allowDrop(event)" ondrop="drop(event, 'pending')">
+                    <h4 class="task-column-title">Pending</h4>
+                    {% for task in tasks if task.status == 'pending' %}
+                        <div id="task-{{ task.id }}" 
+                             class="task-card pending {% if task.priority == 'high' %}high-priority{% elif task.priority == 'medium' %}medium-priority{% elif task.priority == 'low' %}low-priority{% endif %}" 
+                             draggable="true" 
+                             ondragstart="drag(event)">
+                            <div class="task-card-header">
+                                <i class="bi bi-hourglass-start"></i>
+                                <h5>{{ task.title }}</h5>
+                            </div>
+                            <div class="task-card-body">
+                                <p><strong>Due:</strong> {{ task.due_date.strftime('%Y-%m-%d') }}</p>
+                                <p><strong>Priority:</strong> {{ task.priority | capitalize }}</p>
+                                <p><strong>Description:</strong> {{ task.description | capitalize }}</p>
+                                <p><strong>State:</strong> {{ task.state_description or 'Not updated' }}</p>
+                                <p><strong>Last Updated:</strong> {{ task.last_updated.strftime('%Y-%m-%d %H:%M IRST') if task.last_updated else 'Not updated yet' }}</p>
+                                <div class="task-actions">
+                                    <a href="{{ url_for('main.edit_task', task_id=task.id) }}" class="btn btn-info btn-sm"><i class="bi bi-pencil"></i> Edit</a>
+                                </div>
+                            </div>
+                        </div>
+                        {% if not loop.last %}<hr class="card-separator">{% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- In Progress Tasks -->
+                <div class="task-column" ondragover="allowDrop(event)" ondrop="drop(event, 'in_progress')">
+                    <h4 class="task-column-title">In Progress</h4>
+                    {% for task in tasks if task.status == 'in_progress' %}
+                        <div id="task-{{ task.id }}" 
+                             class="task-card in-progress {% if task.priority == 'high' %}high-priority{% elif task.priority == 'medium' %}medium-priority{% elif task.priority == 'low' %}low-priority{% endif %}" 
+                             draggable="true" 
+                             ondragstart="drag(event)">
+                            <div class="task-card-header">
+                                <i class="bi bi-cogs"></i>
+                                <h5>{{ task.title }}</h5>
+                            </div>
+                            <div class="task-card-body">
+                                <p><strong>Due:</strong> {{ task.due_date.strftime('%Y-%m-%d') }}</p>
+                                <p><strong>Priority:</strong> {{ task.priority | capitalize }}</p>
+                                <p><strong>Description:</strong> {{ task.description | capitalize }}</p>
+                                <p><strong>State:</strong> {{ task.state_description or 'Not updated' }}</p>
+                                <p><strong>Last Updated:</strong> {{ task.last_updated.strftime('%Y-%m-%d %H:%M IRST') if task.last_updated else 'Not updated yet' }}</p>
+                                <div class="task-actions">
+                                    <a href="{{ url_for('main.edit_task', task_id=task.id) }}" class="btn btn-info btn-sm"><i class="bi bi-pencil"></i> Edit</a>
+                                </div>
+                            </div>
+                        </div>
+                        {% if not loop.last %}<hr class="card-separator">{% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- Finished Tasks -->
+                <div class="task-column" ondragover="allowDrop(event)" ondrop="drop(event, 'finished')">
+                    <h4 class="task-column-title">Finished</h4>
+                    {% for task in tasks if task.status == 'finished' %}
+                        <div id="task-{{ task.id }}" 
+                             class="task-card finished {% if task.priority == 'high' %}high-priority{% elif task.priority == 'medium' %}medium-priority{% elif task.priority == 'low' %}low-priority{% endif %}" 
+                             draggable="true" 
+                             ondragstart="drag(event)">
+                            <div class="task-card-header">
+                                <i class="bi bi-check-circle"></i>
+                                <h5>{{ task.title }}</h5>
+                            </div>
+                            <div class="task-card-body">
+                                <p><strong>Due:</strong> {{ task.due_date.strftime('%Y-%m-%d') }}</p>
+                                <p><strong>Priority:</strong> {{ task.priority | capitalize }}</p>
+                                <p><strong>Description:</strong> {{ task.description | capitalize }}</p>
+                                <p><strong>State:</strong> {{ task.state_description or 'Not updated' }}</p>
+                                <p><strong>Last Updated:</strong> {{ task.last_updated.strftime('%Y-%m-%d %H:%M IRST') if task.last_updated else 'Not updated yet' }}</p>
+                                <div class="task-actions">
+                                    <a href="{{ url_for('main.edit_task', task_id=task.id) }}" class="btn btn-info btn-sm"><i class="bi bi-pencil"></i> Edit</a>
+                                </div>
+                            </div>
+                        </div>
+                        {% if not loop.last %}<hr class="card-separator">{% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- Done Tasks -->
+                <div class="task-column" ondragover="allowDrop(event)" ondrop="drop(event, 'done')">
+                    <h4 class="task-column-title">Done</h4>
+                    {% for task in tasks if task.status == 'done' %}
+                        <div id="task-{{ task.id }}" 
+                             class="task-card done {% if task.priority == 'high' %}high-priority{% elif task.priority == 'medium' %}medium-priority{% elif task.priority == 'low' %}low-priority{% endif %}" 
+                             draggable="true" 
+                             ondragstart="drag(event)">
+                            <div class="task-card-header">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <h5>{{ task.title }}</h5>
+                            </div>
+                            <div class="task-card-body">
+                                <p><strong>Due:</strong> {{ task.due_date.strftime('%Y-%m-%d') }}</p>
+                                <p><strong>Priority:</strong> {{ task.priority | capitalize }}</p>
+                                <p><strong>Description:</strong> {{ task.description | capitalize }}</p>
+                                <p><strong>State:</strong> {{ task.state_description or 'Not updated' }}</p>
+                                <p><strong>Last Updated:</strong> {{ task.last_updated.strftime('%Y-%m-%d %H:%M IRST') if task.last_updated else 'Not updated yet' }}</p>
+                                <div class="task-actions">
+                                    <a href="{{ url_for('main.edit_task', task_id=task.id) }}" class="btn btn-info btn-sm"><i class="bi bi-pencil"></i> Edit</a>
+                                </div>
+                            </div>
+                        </div>
+                        {% if not loop.last %}<hr class="card-separator">{% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="task-toggle">
+                {% if load_earlier %}
+                    <a href="{{ url_for('main.dashboard', load_earlier='false') }}" class="btn btn-primary"><i class="bi bi-arrow-up"></i> Show Less</a>
+                {% else %}
+                    <a href="{{ url_for('main.dashboard', load_earlier='true') }}" class="btn btn-primary"><i class="bi bi-arrow-down"></i> Load Earlier Tasks</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <hr class="section-separator">
+
+        <!-- Upcoming Meetings Section -->
+        <div class="upcoming-meetings">
+            <div class="section-header">
+                <h3><i class="bi bi-calendar-event"></i> Upcoming Meetings</h3>
+            </div>
+            <hr class="section-separator">
+            <div class="meeting-cards">
+                {% if meetings %}
+                    {% for meeting in meetings %}
+                        <div class="meeting-card">
+                            <div class="meeting-card-header">
+                                <h5>{{ meeting.title }}</h5>
+                                <p><strong>Scheduled By:</strong> {{ meeting.scheduled_by | user_name }}</p>
+                            </div>
+                            <hr class="card-separator">
+                            <div class="meeting-card-body">
+                                <p><strong>Date:</strong> {{ meeting.scheduled_date.strftime('%A, %B %d, %Y %H:%M') }}</p>
+                                <p><strong>Location:</strong> {{ meeting.location }}</p>
+                            </div>
+                            <hr class="card-separator">
+                            <div class="meeting-card-footer">
+                                <a href="{{ url_for('main.meetings') }}" class="btn btn-info"><i class="bi bi-eye"></i> View Details</a>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="no-content">
+                        <p>No upcoming meetings.</p>
+                        <a href="{{ url_for('main.meetings') }}" class="btn btn-info"><i class="bi bi-cog"></i> Manage Meetings</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <hr class="section-separator">
+
+        <!-- Quick Links -->
+        <div class="quick-links">
+            <div class="section-header">
+                <h3><i class="bi bi-link-45deg"></i> Quick Links</h3>
+            </div>
+            <hr class="section-separator">
+            <div class="link-cards">
+                <div class="link-card blue"><i class="bi bi-clipboard-check"></i><h5>Requests</h5><a href="{{ url_for('main.view_requests') }}" class="btn btn-link">Go to Requests</a></div>
+                <div class="link-card orange"><i class="bi bi-exclamation-triangle"></i><h5>Incident & Event Reports</h5><a href="{{ url_for('main.profile') }}" class="btn btn-link">View Reports</a></div>
+                <div class="link-card green"><i class="bi bi-file-earmark-text"></i><h5>Tender Estimation</h5><a href="https://tender-app.streamlit.app/" class="btn btn-link">Tender Estimation</a></div>
+                <div class="link-card purple"><i class="bi bi-gear"></i><h5>Auto Report Generator</h5><a href="{{ url_for('main.profile') }}" class="btn btn-link">Generate Report</a></div>
+                <div class="link-card red"><i class="bi bi-box-seam"></i><h5>Inventory</h5><a href="https://paniz-energy.com/" class="btn btn-link">Manage Inventory</a></div>
+                <div class="link-card teal"><i class="bi bi-tools"></i><h5>Maintenance & Operation</h5><a href="https://paniz-energy.com/" class="btn btn-link">Manage</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        function allowDrop(event) { event.preventDefault(); }
+        function drag(event) { event.dataTransfer.setData("task_id", event.target.id.split("-")[1]); }
+        function drop(event, newStatus) {
+            event.preventDefault();
+            var taskId = event.dataTransfer.getData("task_id");
+            var taskElement = document.getElementById("task-" + taskId);
+            event.currentTarget.appendChild(taskElement);
+            fetch("{{ url_for('main.update_task_status') }}", {  
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ task_id: taskId, status: newStatus })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(data);
+                if (data.error) {
+                    alert(data.error);  
+                    location.reload();  
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to update task status');
+                location.reload();  
+            });
+        }
+    
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (section.style.display === 'block') {
+                section.style.display = 'none';
+            } else {
+                document.querySelectorAll('.expandable-section').forEach(s => s.style.display = 'none');
+                section.style.display = 'block';
+                if (sectionId === 'announcements' && document.getElementById('announcements-count')) {
+                    fetch('{{ url_for("main.announcements_viewed") }}', {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            document.getElementById('announcements-count').style.display = 'none';
+                        }
+                    });
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --accent: #e74c3c;
+            --background: #f5f6fa;
+            --card-bg: #ffffff;
+            --text: #2d3436;
+            --muted: #7f8c8d;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 40px 20px; }
+        h2 { font-size: 2.5rem; color: var(--primary); margin-bottom: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        h3 { font-size: 1.8rem; color: var(--primary); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .section-actions { display: flex; gap: 10px; }
+        .section-separator { border: 0; height: 2px; background: linear-gradient(to right, var(--secondary), transparent); margin: 20px 0; }
+        .card-separator { border: 0; height: 1px; background: rgba(0, 0, 0, 0.1); margin: 15px 0; }
+        .btn { padding: 10px 20px; border-radius: 25px; font-weight: 500; text-decoration: none; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: var(--secondary); color: white; border: none; }
+        .btn-primary:hover { background: #2980b9; transform: translateY(-2px); }
+        .btn-info { background: #27ae60; color: white; border: none; }
+        .btn-info:hover { background: #219653; }
+        .btn-danger { background: var(--accent); color: white; border: none; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-sm { padding: 5px 10px; font-size: 0.9rem; }
+        .btn-outline-secondary { border: 1px solid var(--muted); color: var(--muted); background: none; }
+        .btn-outline-secondary:hover { background: var(--muted); color: white; }
+
+        /* Dashboard Cards */
+        .dashboard-cards { display: flex; gap: 20px; margin-bottom: 20px; }
+        .dashboard-card { background: var(--card-bg); padding: 20px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); flex: 1; text-align: center; cursor: pointer; transition: all 0.3s ease; }
+        .dashboard-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .card-header { display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .card-header i { font-size: 2rem; color: var(--secondary); }
+        .card-header h3 { font-size: 1.5rem; color: var(--primary); margin: 0; }
+        .new-badge { background: var(--accent); color: white; border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.9rem; margin-left: 10px; }
+
+        /* Expandable Sections */
+        .expandable-section { display: none; background: var(--card-bg); padding: 20px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        
+        /* Announcements */
+        .announcements { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .announcement-card { 
+            background: var(--card-bg); 
+            border-radius: 10px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+            overflow: hidden; 
+            transition: all 0.3s ease; 
+        }
+        .announcement-card:hover { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(0,0,0,0.1); }
+        .announcement-header { 
+            background: var(--primary); 
+            padding: 10px 15px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        .announcement-header h5 { 
+            color: white; 
+            font-size: 1.2rem; 
+            font-weight: 600; 
+            margin: 0; 
+            flex-grow: 1; 
+        }
+        .announcement-date { 
+            color: #bdc3c7; 
+            font-size: 0.85rem; 
+            font-style: italic; 
+        }
+        .announcement-body { padding: 15px; }
+        .announcement-author { font-size: 0.9rem; color: var(--muted); margin: 0 0 10px; }
+        .announcement-content { font-size: 1rem; color: var(--text); line-height: 1.5; margin: 0 0 10px; }
+        .announcement-attachment { font-size: 0.9rem; color: var(--muted); margin: 0 0 10px; }
+        .announcement-target { font-size: 0.9rem; color: var(--muted); margin: 0; font-style: italic; }
+        .no-content { text-align: center; padding: 20px; color: var(--muted); }
+
+        /* Sticky Notes */
+        .sticky-notes { display: flex; flex-wrap: wrap; gap: 20px; }
+        .sticky-note { background: #fff3cd; padding: 15px; width: 200px; min-height: 150px; box-shadow: 3px 3px 5px rgba(0,0,0,0.2); transform: rotate(-2deg); border: 1px solid #ffeeba; transition: transform 0.3s ease; }
+        .sticky-note:nth-child(even) { transform: rotate(2deg); }
+        .sticky-note:hover { transform: scale(1.05); }
+        .sticky-content { background: none; border: none; width: 100%; height: 100px; resize: none; font-family: 'Roboto', sans-serif; }
+        .sticky-actions { display: flex; gap: 5px; margin-top: 10px; }
+        .add-note-form { display: flex; gap: 10px; align-items: center; }
+        .add-note-form textarea { resize: none; width: 300px; }
+
+        /* Task Board */
+        .task-columns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 25px; }
+        .task-column { background: var(--card-bg); padding: 20px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); min-height: 200px; transition: all 0.3s ease; }
+        .task-column:hover { box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .task-column-title { font-size: 1.3rem; color: var(--primary); margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid var(--secondary); }
+        .task-card { background: var(--card-bg); border-radius: 10px; padding: 15px; box-shadow: 0 3px 10px rgba(0,0,0,0.05); transition: all 0.3s ease; }
+        .task-card:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .task-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .task-card-header i { color: var(--secondary); font-size: 1.2rem; }
+        .task-card h5 { font-size: 1.1rem; color: var(--text); margin: 0; }
+        .task-card-body p { font-size: 0.9rem; color: var(--muted); margin: 5px 0; }
+        .high-priority { border-left: 4px solid #e74c3c; }
+        .medium-priority { border-left: 4px solid #f1c40f; }
+        .low-priority { border-left: 4px solid #2ecc71; }
+        .done { border-left: 4px solid #2ecc71; background: #e9ffe9; }
+        .task-actions { margin-top: 10px; text-align: right; }
+        .task-toggle { text-align: center; margin-top: 20px; }
+
+        /* Meetings */
+        .meeting-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; }
+        .meeting-card { background: var(--card-bg); padding: 20px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); transition: all 0.3s ease; }
+        .meeting-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .meeting-card-header h5 { color: var(--primary); background: var(--card-bg); font-size: 1.2rem; margin-bottom: 8px; }
+        .meeting-card-footer { margin-top: 15px; text-align: right; }
+
+        /* Quick Links */
+        .link-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        .link-card { background: var(--card-bg); padding: 25px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); text-align: center; transition: all 0.3s ease; }
+        .link-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .link-card i { font-size: 2rem; margin-bottom: 15px; display: block; }
+        .link-card h5 { font-size: 1.1rem; color: var(--text); margin-bottom: 15px; }
+        .link-card.blue i { color: #3498db; }
+        .link-card.orange i { color: #e67e22; }
+        .link-card.green i { color: #27ae60; }
+        .link-card.purple i { color: #8e44ad; }
+        .link-card.red i { color: #e74c3c; }
+        .link-card.teal i { color: #16a085; }
+        .btn-link { background: none; color: var(--secondary); padding: 8px 15px; border-radius: 20px; border: 1px solid var(--secondary); }
+        .btn-link:hover { background: var(--secondary); color: white; }
+    </style>
+{% endblock %}

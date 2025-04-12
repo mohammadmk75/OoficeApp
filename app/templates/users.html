@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Users</h1>
+    <div class="mb-4">
+        <input type="text" id="searchInput" class="form-control" placeholder="Search by name, email, or group...">
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered" id="usersTable">
+            <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Group</th>
+                    <th>Role</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.first_name }} {{ user.last_name }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ user.group }}</td>
+                    <td>
+                        {% if user.is_superuser %}Admin{% endif %}
+                        {% if user.is_teamlead %}Team Lead{% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('main.edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // JavaScript for search functionality
+    document.getElementById('searchInput').addEventListener('input', function () {
+        const searchQuery = this.value.toLowerCase();
+        const rows = document.querySelectorAll('#usersTable tbody tr');
+
+        rows.forEach(row => {
+            const name = row.cells[1].textContent.toLowerCase();
+            const email = row.cells[2].textContent.toLowerCase();
+            const group = row.cells[3].textContent.toLowerCase();
+
+            if (name.includes(searchQuery) || email.includes(searchQuery) || group.includes(searchQuery)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}

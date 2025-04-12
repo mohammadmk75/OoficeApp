@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2><i class="bi bi-envelope"></i> Received Requests Archive</h2>
+    <hr class="section-separator">
+    
+    <!-- Single search bar for all requests -->
+    <div class="search-section">
+        <input type="text" id="global-received-search" placeholder="Search all received requests..." class="form-control">
+    </div>
+
+    {% for month, requests in archive_by_month.items() %}
+        <div class="archive-section">
+            <div class="section-header">
+                <h3>{{ month }}</h3>
+            </div>
+            <hr class="section-separator">
+            <div class="table-container">
+                <table class="request-table" id="received-table-{{ month|replace(' ', '-') }}">
+                    <thead>
+                        <tr>
+                            <th data-sort="title">Title <i class="bi bi-arrow-down-up"></i></th>
+                            <th data-sort="from">From <i class="bi bi-arrow-down-up"></i></th>
+                            <th data-sort="created_at">Date <i class="bi bi-arrow-down-up"></i></th>
+                            <th data-sort="status">Status <i class="bi bi-arrow-down-up"></i></th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="received-table-body-{{ month|replace(' ', '-') }}">
+                        {% for req in requests %}
+                            <tr>
+                                <td>{{ req.title }}</td>
+                                <td>{{ req.sender.first_name }} {{ req.sender.last_name }}</td>
+                                <td>{{ req.created_at.strftime('%Y-%m-%d %H:%M IRST') }}</td>
+                                <td class="status-{{ req.status }}">{{ req.status | capitalize }}</td>
+                                <td>
+                                    <a href="{{ url_for('main.view_request', request_id=req.id) }}" class="btn btn-info btn-sm"><i class="bi bi-eye"></i> View</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination" id="received-pagination-{{ month|replace(' ', '-') }}">
+                <button class="btn btn-secondary" id="received-prev-page-{{ month|replace(' ', '-') }}" disabled><i class="bi bi-chevron-left"></i> Previous</button>
+                <span>Page <span id="received-current-page-{{ month|replace(' ', '-') }}">1</span> of <span id="received-total-pages-{{ month|replace(' ', '-') }}">1</span></span>
+                <button class="btn btn-secondary" id="received-next-page-{{ month|replace(' ', '-') }}"><i class="bi bi-chevron-right"></i> Next</button>
+            </div>
+        </div>
+    {% endfor %}
+
+    <div class="back-button">
+        <a href="{{ url_for('main.view_requests') }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Back to Requests</a>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Global search input
+    const searchInput = document.getElementById('global-received-search');
+    if (!searchInput) {
+        console.error('Global search input not found');
+        return;
+    }
+
+    // Store all tables and their rows
+    const tables = {};
+    {% for month in archive_by_month.keys() %}
+        tables['{{ month|replace(" ", "-") }}'] = {
+            tbody: document.getElementById('received-table-body-{{ month|replace(" ", "-") }}'),
+            allRows: Array.from(document.getElementById('received-table-body-{{ month|replace(" ", "-") }}').getElementsByTagName('tr')),
+            currentPage: 1,
+            prevButton: document.getElementById('received-prev-page-{{ month|replace(" ", "-") }}'),
+            nextButton: document.getElementById('received-next-page-{{ month|replace(" ", "-") }}'),
+            currentPageSpan: document.getElementById('received-current-page-{{ month|replace(" ", "-") }}'),
+            totalPagesSpan: document.getElementById('received-total-pages-{{ month|replace(" ", "-") }}')
+        };
+    {% endfor %}
+
+    // Check if all elements were found
+    for (const month in tables) {
+        const table = tables[month];
+        if (!table.tbody || !table.prevButton || !table.nextButton || !table.currentPageSpan || !table.totalPagesSpan) {
+            console.error(`Missing elements for table ${month}`);
+            return;
+        }
+    }
+
+    const rowsPerPage = 10;
+
+    // Sorting function for each table
+    function setupSorting(tableId) {
+        const table = document.getElementById(tableId);
+        const headers = table.querySelectorAll('th[data-sort]');
+        headers.forEach(th => {
+            th.addEventListener('click', () => {
+                const field = th.getAttribute('data-sort');
+                const tbody = table.querySelector('tbody');
+                const rows = Array.from(tbody.getElementsByTagName('tr'));
+                const isAscending = th.classList.toggle('asc');
+
+                rows.sort((a, b) => {
+                    const aValue = a.cells[Array.from(th.parentElement.children).indexOf(th)].textContent;
+                    const bValue = b.cells[Array.from(th.parentElement.children).indexOf(th)].textContent;
+                    return isAscending ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+                });
+
+                rows.forEach(row => tbody.appendChild(row));
+                th.querySelector('i').classList.toggle('bi-arrow-up', isAscending);
+                th.querySelector('i').classList.toggle('bi-arrow-down', !isAscending);
+            });
+        });
+    }
+
+    // Update table display
+    function updateTable(month) {
+        const table = tables[month];
+        const visibleRows = table.allRows.filter(row => row.style.display !== 'none');
+        const totalPages = Math.ceil(visibleRows.length / rowsPerPage) || 1;
+        table.totalPagesSpan.textContent = totalPages;
+        table.currentPageSpan.textContent = table.currentPage;
+
+        visibleRows.forEach((row, index) => {
+            row.style.display = (index >= (table.currentPage - 1) * rowsPerPage && index < table.currentPage * rowsPerPage) ? '' : 'none';
+        });
+
+        table.prevButton.disabled = table.currentPage === 1;
+        table.nextButton.disabled = table.currentPage === totalPages || totalPages === 0;
+    }
+
+    // Global search across all tables
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        for (const month in tables) {
+            const table = tables[month];
+            table.allRows.forEach(row => {
+                row.style.display = row.textContent.toLowerCase().includes(searchTerm) ? '' : 'none';
+            });
+            table.currentPage = 1; // Reset to page 1 on search
+            updateTable(month);
+        }
+    });
+
+    // Setup pagination for each table
+    for (const month in tables) {
+        const table = tables[month];
+
+        table.prevButton.addEventListener('click', () => {
+            if (table.currentPage > 1) {
+                table.currentPage--;
+                updateTable(month);
+            }
+        });
+
+        table.nextButton.addEventListener('click', () => {
+            const visibleRows = table.allRows.filter(row => row.style.display !== 'none');
+            const totalPages = Math.ceil(visibleRows.length / rowsPerPage);
+            if (table.currentPage < totalPages) {
+                table.currentPage++;
+                updateTable(month);
+            }
+        });
+
+        // Initial setup
+        setupSorting(`received-table-${month}`);
+        updateTable(month);
+    }
+});
+</script>
+
+
+<style>
+    :root {
+        --primary: #2c3e50;
+        --secondary: #3498db;
+        --accent: #e74c3c;
+        --background: #f5f6fa;
+        --card-bg: #ffffff;
+        --text: #2d3436;
+        --muted: #7f8c8d;
+    }
+
+    .container { max-width: 1400px; margin: 0 auto; padding: 40px 20px; }
+    h2 { font-size: 2.2rem; color: var(--primary); margin-bottom: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    h3 { font-size: 1.6rem; color: var(--primary); font-weight: 600; }
+    .section-separator { border: 0; height: 2px; background: linear-gradient(to right, var(--secondary), transparent); margin: 20px 0; }
+    .archive-section { background: var(--card-bg); padding: 20px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 30px; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+
+    .search-section { margin: 20px 0; }
+    .form-control { padding: 10px 15px; border-radius: 25px; border: 1px solid var(--muted); width: 100%; max-width: 400px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05); }
+    .form-control:focus { border-color: var(--secondary); outline: none; box-shadow: 0 0 5px rgba(52, 152, 219, 0.5); }
+
+    .table-container { overflow-x: auto; }
+    .request-table { width: 100%; border-collapse: collapse; }
+    .request-table th, .request-table td { padding: 15px; text-align: left; border-bottom: 1px solid #e9ecef; }
+    .request-table th { background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+    .request-table th i { margin-left: 5px; font-size: 0.9rem; }
+    .request-table th.asc i.bi-arrow-down-up { display: none; }
+    .request-table th i.bi-arrow-up, .request-table th i.bi-arrow-down { display: none; }
+    .request-table th.asc i.bi-arrow-up { display: inline; }
+    .request-table th:not(.asc) i.bi-arrow-down { display: inline; }
+    .request-table tr:hover { background: #f8f9fa; }
+    .status-pending { color: #e67e22; font-weight: 500; }
+    .status-approved { color: #27ae60; font-weight: 500; }
+    .status-rejected { color: var(--accent); font-weight: 500; }
+
+    .btn { padding: 10px 20px; border-radius: 25px; font-weight: 500; text-decoration: none; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-info { background: #27ae60; color: white; border: none; padding: 5px 10px; border-radius: 15px; }
+    .btn-info:hover { background: #219653; }
+    .btn-sm { font-size: 0.9rem; }
+    .btn-secondary { background: transparent; color: var(--primary); border: 2px solid var(--primary); }
+    .btn-secondary:hover { background: var(--primary); color: white; transform: translateY(-2px); }
+
+    .pagination { text-align: center; margin-top: 20px; display: flex; justify-content: center; align-items: center; gap: 15px; }
+    .btn-secondary { background: var(--muted); color: white; border: none; padding: 8px 15px; border-radius: 20px; }
+    .btn-secondary:hover { background: #6c757d; }
+    .btn-secondary:disabled { background: #d3d3d3; cursor: not-allowed; }
+
+    .back-button { margin-top: 30px; text-align: center; }
+</style>
+{% endblock %}
