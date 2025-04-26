@@ -169,7 +169,7 @@ def edit_profile():
 
 def send_registration_email(email):
     token = serializer.dumps(email, salt='email-confirm')
-    msg = Message('Register for Company App', sender='keshavarzi96@gmail.com', recipients=[email])
+    msg = Message('Register for Company App', sender='your-email.com', recipients=[email])
     msg.body = f'Click the link to register: {url_for("main.register", token=token, _external=True)}'
     mail.send(msg)
 
@@ -848,7 +848,7 @@ def send_meeting_reminder(meeting_id):
                 for attendee in attendees:
                     msg = Message(
                         subject=f"⏳ Reminder: {meeting.title} in 1 Hour",
-                        sender='keshavarzi96@gmail.com',
+                        sender='your-email.com',
                         recipients=[attendee.email]
                     )
                     msg.body = f"""
