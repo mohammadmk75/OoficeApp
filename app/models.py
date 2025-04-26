@@ -1,13 +1,13 @@
 from app import db, login_manager,iran_tz
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime,timedelta
 import pytz
 
 
-
 def iran_now():
-    return datetime.now(iran_tz)
+    return datetime.utcnow() + timedelta(hours=3, minutes=30)
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -25,6 +25,8 @@ class Users(db.Model, UserMixin):
     is_superuser = db.Column(db.Boolean, default=False)
     is_teamlead = db.Column(db.Boolean, default=False)  # New field
     profile_photo = db.Column(db.String(255), nullable=True)
+    password_reset_token = db.Column(db.String(255), nullable=True)
+    token_expiry = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=iran_now)
     last_notifications_viewed = db.Column(db.DateTime, nullable=True)
 
@@ -141,4 +143,36 @@ class LunchOrder(db.Model):
     ordered_at = db.Column(db.DateTime, default=iran_now)
         
     user = db.relationship('Users', backref='lunch_orders')
+
+# Add this new model below the existing models in models.py
+class RequestReferrals(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey('requests.id'), nullable=False)
+    referrer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    referred_to_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    referred_to_dept = db.Column(db.String(50), nullable=True)
+    reason = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=iran_now)
+
+    request = db.relationship('Requests', backref='referrals')
+    referrer = db.relationship('Users', foreign_keys=[referrer_id], backref='sent_referrals')
+    referred_to_user = db.relationship('Users', foreign_keys=[referred_to_user_id], backref='received_referrals')
+
+
+class Documents(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    preview_filename = db.Column(db.String(100))  # New
+    preview_filenames = db.Column(db.JSON)
+    signed_filename = db.Column(db.String(100))
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+   
+    created_at = db.Column(db.DateTime, default=iran_now)
+
+    sender = db.relationship('Users', foreign_keys=[sender_id], backref='sent_documents')
+    receiver = db.relationship('Users', foreign_keys=[receiver_id], backref='received_documents')
+   
+
 
