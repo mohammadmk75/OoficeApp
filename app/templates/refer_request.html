@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2><i class="bi bi-arrow-right-circle"></i> Refer Request</h2>
+    <hr class="section-separator">
+
+    <div class="form-section">
+        <div class="section-header">
+            <h3>{{ request.title }}</h3>
+        </div>
+        <hr class="section-separator">
+
+        <form method="POST" action="{{ url_for('main.refer_request', request_id=request.id) }}">
+            <div class="form-group">
+                <label for="referred_to_user_id"><i class="bi bi-person"></i> Refer to User</label>
+                <select id="referred_to_user_id" name="referred_to_user_id" class="selectpicker form-control" data-live-search="true" data-size="5">
+                    <option value="">Select a person (optional)</option>
+                    {% for user in users %}
+                        <option value="{{ user.id }}" 
+                                data-content="{% if user.profile_photo %}<img src='{{ url_for('static', filename='uploads/' + user.profile_photo) }}' style='width: 30px; height: 30px; border-radius: 50%; margin-right: 8px;'>{% endif %}{{ user.first_name }} {{ user.last_name }} ({{ user.email }})">
+                            {{ user.first_name }} {{ user.last_name }} ({{ user.email }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <hr class="card-separator">
+
+            <div class="form-group">
+                <label for="referred_to_dept"><i class="bi bi-building"></i> Refer to Department</label>
+                <select id="referred_to_dept" name="referred_to_dept" class="form-control">
+                    <option value="">Select a department (optional)</option>
+                    {% for dept in departments %}
+                        <option value="{{ dept }}">{{ dept }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <hr class="card-separator">
+
+            <div class="form-group">
+                <label for="reason"><i class="bi bi-file-text"></i> Reason for Referral</label>
+                <textarea id="reason" name="reason" class="form-control" rows="4" placeholder="Explain why you are referring this request..."></textarea>
+            </div>
+            <hr class="card-separator">
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-right-circle"></i> Refer Request</button>
+                <a href="{{ url_for('main.view_request', request_id=request.id) }}" class="btn btn-secondary"><i class="bi bi-x"></i> Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    :root {
+        --primary: #2c3e50;
+        --secondary: #3498db;
+        --accent: #e74c3c;
+        --background: #f5f6fa;
+        --card-bg: #ffffff;
+        --text: #2d3436;
+        --muted: #7f8c8d;
+    }
+    .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+    h2 { font-size: 2.5rem; color: var(--primary); margin-bottom: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    h3 { font-size: 1.8rem; color: var(--primary); font-weight: 600; }
+    .section-separator { border: 0; height: 2px; background: linear-gradient(to right, var(--secondary), transparent); margin: 20px 0; }
+    .card-separator { border: 0; height: 1px; background: rgba(0, 0, 0, 0.1); margin: 20px 0; }
+    .form-section { background: var(--card-bg); padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { font-size: 1.1rem; color: var(--text); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .form-control, .bootstrap-select .btn { 
+        width: 100%; 
+        padding: 10px; 
+        font-size: 1rem; 
+        border: 1px solid var(--muted); 
+        border-radius: 5px; 
+        transition: border-color 0.3s ease; 
+    }
+    .form-control:focus, .bootstrap-select .btn:focus { 
+        outline: none; 
+        border-color: var(--secondary); 
+        box-shadow: 0 0 5px rgba(52, 152, 219, 0.3); 
+    }
+    .form-actions { display: flex; gap: 20px; justify-content: flex-end; }
+    .btn { padding: 10px 20px; border-radius: 25px; font-weight: 500; text-decoration: none; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-primary { background: var(--secondary); color: white; border: none; }
+    .btn-primary:hover { background: #2980b9; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+    .btn-secondary { background: transparent; color: var(--primary); border: 2px solid var(--primary); }
+    .btn-secondary:hover { background: var(--primary); color: white; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+</style>
+{% endblock %}
