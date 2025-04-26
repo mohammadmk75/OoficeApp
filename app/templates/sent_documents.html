@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2><i class="bi bi-send"></i> Sent Documents</h2>
+    <hr class="section-separator">
+
+    <div class="document-section">
+        <div class="search-container">
+            <input type="text" id="sent-search" class="form-control" placeholder="Search sent documents..." aria-label="Search sent documents">
+            <button class="btn btn-secondary" onclick="clearSearch('sent')" aria-label="Clear search"><i class="bi bi-x"></i> Clear</button>
+        </div>
+        <div id="sent-documents">
+            {% if sent %}
+            <table class="table" aria-describedby="sent-documents-title">
+                <thead>
+                    <tr>
+                        <th scope="col">Title</th>
+                        <th scope="col">Filename</th>
+                        <th scope="col">Recipient</th>
+                        <th scope="col">Date</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="sent-table-body">
+                    {% for doc in sent %}
+                    <tr class="document-item" 
+                        data-title="{{ doc.title|lower }}" 
+                        data-filename="{{ doc.filename|lower }}" 
+                        data-receiver="{{ doc.receiver.first_name|lower }} {{ doc.receiver.last_name|lower }}">
+                        <td>{{ doc.title|truncate(25, True) }}</td>
+                        <td>{{ doc.filename|truncate(20, True) }}</td>
+                        <td>{{ doc.receiver.first_name }} {{ doc.receiver.last_name }}</td>
+                        <td>{{ doc.created_at.strftime('%Y-%m-%d %H:%M IRST') }}</td>
+                        <td>
+                            <a href="{{ url_for('main.preview', doc_id=doc.id) }}" class="btn btn-info btn-sm" title="Preview document" aria-label="Preview document"><i class="bi bi-eye"></i></a>
+                            <a href="{{ url_for('main.download', doc_id=doc.id) }}" class="btn btn-info btn-sm" title="Download document" aria-label="Download document"><i class="bi bi-download"></i></a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="pagination">
+                <button class="btn btn-secondary" id="sent-prev" onclick="showPage('sent', -1)" disabled><i class="bi bi-chevron-left"></i> Previous</button>
+                <button class="btn btn-secondary" id="sent-next" onclick="showPage('sent', 1)" disabled><i class="bi bi-chevron-right"></i> Next</button>
+            </div>
+            {% else %}
+            <p class="no-documents">No sent documents available.</p>
+            {% endif %}
+        </div>
+        <div class="form-actions">
+            <a href="{{ url_for('main.documents') }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Back</a>
+        </div>
+    </div>
+</div>
+
+<style>
+    :root {
+        --primary: #2c3e50;
+        --secondary: #3498db;
+        --accent: #e74c3c;
+        --background: #f5f6fa;
+        --card-bg: #ffffff;
+        --text: #2d3436;
+        --muted: #7f8c8d;
+        --success: #27ae60;
+    }
+    .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+    h2 { font-size: 2.2rem; color: var(--primary); margin-bottom: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .section-separator { border: 0; height: 2px; background: linear-gradient(to right, var(--secondary), transparent); margin: 25px 0; }
+    .document-section { background: var(--card-bg); padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+    .search-container { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+    .table { width: 100%; border-collapse: collapse; font-size: 0.95rem; margin-bottom: 20px; }
+    .table th { background: var(--primary); color: white; padding: 12px; text-align: left; font-weight: 500; }
+    .table td { padding: 12px; border-bottom: 1px solid #eee; color: var(--text); }
+    .table tr:hover { background: #f8f9fa; }
+    .pagination { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 20px; }
+    .no-documents { color: var(--muted); font-style: italic; text-align: center; padding: 20px; }
+    .form-control { width: 100%; padding: 12px; font-size: 1rem; border: 1px solid #d1d3e2; border-radius: 8px; transition: all 0.3s ease; }
+    .form-control:focus { outline: none; border-color: var(--secondary); box-shadow: 0 0 5px rgba(52, 152, 219, 0.3); }
+    .form-actions { display: flex; justify-content: flex-end; gap: 15px; }
+    .btn { padding: 12px 25px; border-radius: 25px; font-weight: 500; text-decoration: none; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-primary { background: var(--secondary); color: white; border: none; }
+    .btn-primary:hover { background: #2980b9; transform: translateY(-2px); }
+    .btn-secondary { background: transparent; color: var(--primary); border: 2px solid var(--primary); }
+    .btn-secondary:hover { background: var(--primary); color: white; transform: translateY(-2px); }
+    .btn-info { background: #17a2b8; color: white; border: none; }
+    .btn-info:hover { background: #138496; }
+    .btn-sm { font-size: 0.9rem; padding: 6px 12px; }
+    @media (max-width: 600px) {
+        .search-container { flex-direction: column; gap: 10px; }
+        .search-container input, .search-container .btn { width: 100%; }
+        .table th, .table td { font-size: 0.85rem; padding: 8px; }
+        .form-actions { flex-direction: column; gap: 10px; }
+        .btn { width: 100%; justify-content: center; }
+    }
+</style>
+
+<script>
+    // Pagination functionality
+    const ITEMS_PER_PAGE = 10;
+    const paginationState = {
+        sent: { currentPage: 0, items: [] }
+    };
+
+    function updatePagination(section) {
+        const container = document.getElementById(`${section}-documents`);
+        const tableBody = document.getElementById(`${section}-table-body`);
+        const prevButton = document.getElementById(`${section}-prev`);
+        const nextButton = document.getElementById(`${section}-next`);
+        const searchInput = document.getElementById(`${section}-search`).value.toLowerCase().trim();
+
+        // Get all items and filter based on search
+        let items = Array.from(container.getElementsByClassName('document-item'));
+        paginationState[section].items = items;
+        if (searchInput) {
+            items = items.filter(item => {
+                const title = item.getAttribute('data-title');
+                const filename = item.getAttribute('data-filename');
+                const person = item.getAttribute('data-receiver');
+                return title.includes(searchInput) || filename.includes(searchInput) || person.includes(searchInput);
+            });
+        }
+
+        // Hide all items
+        paginationState[section].items.forEach(item => item.style.display = 'none');
+
+        // Calculate start and end indices
+        const { currentPage } = paginationState[section];
+        const start = currentPage * ITEMS_PER_PAGE;
+        const end = Math.min(start + ITEMS_PER_PAGE, items.length);
+
+        // Show items for current page
+        items.slice(start, end).forEach(item => item.style.display = '');
+
+        // Update button states
+        prevButton.disabled = currentPage === 0;
+        nextButton.disabled = end >= items.length;
+
+        // Show empty state if no items after filtering
+        if (items.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="5" class="no-documents">No matching documents found.</td></tr>';
+        }
+    }
+
+    function showPage(section, direction) {
+        const { currentPage } = paginationState[section];
+        const newPage = currentPage + direction;
+        if (newPage >= 0) {
+            paginationState[section].currentPage = newPage;
+            updatePagination(section);
+        }
+    }
+
+    function filterDocuments(section) {
+        paginationState[section].currentPage = 0;
+        updatePagination(section);
+    }
+
+    function clearSearch(section) {
+        const input = document.getElementById(`${section}-search`);
+        input.value = '';
+        paginationState[section].currentPage = 0;
+        updatePagination(section);
+    }
+
+    document.getElementById('sent-search').addEventListener('input', () => filterDocuments('sent'));
+
+    // Initialize pagination
+    document.addEventListener('DOMContentLoaded', () => {
+        $('[data-bs-toggle="tooltip"]').tooltip();
+        updatePagination('sent');
+    });
+</script>
+{% endblock %}

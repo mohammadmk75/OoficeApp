@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h4 class="mb-0">Document Preview: {{ doc.title }}</h4>
+    </div>
+    <div class="card-body">
+        <div class="mb-3">
+            <a href="{{ url_for('main.download', doc_id=doc.id) }}" class="btn btn-success"><i class="bi bi-download"></i> Download Document</a>
+        </div>
+        {% if previews %}
+            <div class="row">
+                {% for preview in previews %}
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <img src="{{ url_for('static', filename='Uploads/' + preview) }}" class="card-img-top" alt="Preview">
+                        <div class="card-body text-center">
+                            <p class="card-text">Page {{ loop.index }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>No preview available for this document.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

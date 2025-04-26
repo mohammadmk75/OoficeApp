@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2><i class="bi bi-files"></i> Document Management</h2>
+    <hr class="section-separator">
+
+    <div class="document-section">
+        <div class="options-grid">
+            <a href="{{ url_for('main.share_document') }}" class="option-card">
+                <i class="bi bi-upload option-icon"></i>
+                <h4>Share a Document</h4>
+                <p>Upload and send documents to colleagues securely.</p>
+            </a>
+            <a href="{{ url_for('main.sent_documents') }}" class="option-card">
+                <i class="bi bi-send option-icon"></i>
+                <h4>Sent Documents</h4>
+                <p>View all documents you have sent.</p>
+            </a>
+            <a href="{{ url_for('main.received_documents') }}" class="option-card">
+                <i class="bi bi-inbox option-icon"></i>
+                <h4>Received Documents</h4>
+                <p>Check documents sent to you.</p>
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+    :root {
+        --primary: #2c3e50;
+        --secondary: #3498db;
+        --accent: #e74c3c;
+        --background: #f5f6fa;
+        --card-bg: #ffffff;
+        --text: #2d3436;
+        --muted: #7f8c8d;
+        --success: #27ae60;
+    }
+    .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+    h2 { font-size: 2.2rem; color: var(--primary); margin-bottom: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .section-separator { border: 0; height: 2px; background: linear-gradient(to right, var(--secondary), transparent); margin: 25px 0; }
+    .document-section { background: var(--card-bg); padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+    .options-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+    .option-card { 
+        display: flex; 
+        flex-direction: column; 
+        align-items: center; 
+        text-align: center; 
+        padding: 20px; 
+        background: #f8f9fa; 
+        border-radius: 10px; 
+        text-decoration: none; 
+        color: var(--text); 
+        transition: transform 0.3s ease, box-shadow 0.3s ease; 
+    }
+    .option-card:hover { 
+        transform: translateY(-5px); 
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1); 
+        background: #e6f0fa; 
+    }
+    .option-icon { font-size: 2.5rem; color: var(--secondary); margin-bottom: 10px; }
+    .option-card h4 { font-size: 1.4rem; color: var(--primary); margin: 10px 0; }
+    .option-card p { font-size: 0.95rem; color: var(--muted); margin: 0; }
+    @media (max-width: 600px) {
+        .options-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}

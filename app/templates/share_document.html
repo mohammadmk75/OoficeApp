@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2><i class="bi bi-upload"></i> Share a Document</h2>
+    <hr class="section-separator">
+
+    <div class="document-section">
+        <form method="POST" enctype="multipart/form-data" id="upload-form" class="form">
+            <div class="form-group">
+                <label for="title"><i class="bi bi-fonts"></i> Document Title</label>
+                <input type="text" class="form-control" id="title" name="title" placeholder="e.g., Project Proposal" required aria-required="true">
+            </div>
+            <div class="form-group">
+                <label for="receiver_id"><i class="bi bi-person"></i> Recipient</label>
+                <select class="form-control selectpicker" id="receiver_id" name="receiver_id" data-live-search="true" required aria-required="true">
+                    <option value="" disabled selected>Select a recipient</option>
+                    {% for user in users %}
+                        <option value="{{ user.id }}">{{ user.first_name }} {{ user.last_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="files"><i class="bi bi-paperclip"></i> Select Files</label>
+                <input type="file" class="form-control-file" id="files" name="files" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required aria-required="true">
+                <small class="form-text text-muted">Supported formats: PDF, JPG, PNG, DOC, DOCX</small>
+                <div class="file-preview" id="file-preview"></div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" id="submit-btn" data-bs-toggle="tooltip" data-bs-placement="top" title="Share selected documents">
+                    <i class="bi bi-upload"></i> Share
+                </button>
+                <a href="{{ url_for('main.documents') }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Back</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    :root {
+        --primary: #2c3e50;
+        --secondary: #3498db;
+        --accent: #e74c3c;
+        --background: #f5f6fa;
+        --card-bg: #ffffff;
+        --text: #2d3436;
+        --muted: #7f8c8d;
+        --success: #27ae60;
+    }
+    .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+    h2 { font-size: 2.2rem; color: var(--primary); margin-bottom: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .section-separator { border: 0; height: 2px; background: linear-gradient(to right, var(--secondary), transparent); margin: 25px 0; }
+    .document-section { background: var(--card-bg); padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+    .form { margin-bottom: 20px; }
+    .form-group { margin-bottom: 25px; }
+    .form-group label { font-size: 1.1rem; color: var(--text); font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .form-control, .form-control-file { width: 100%; padding: 12px; font-size: 1rem; border: 1px solid #d1d3e2; border-radius: 8px; transition: all 0.3s ease; }
+    .form-control:focus, .form-control-file:focus { outline: none; border-color: var(--secondary); box-shadow: 0 0 5px rgba(52, 152, 219, 0.3); }
+    .form-control-file { padding: 8px; }
+    .form-text { margin-top: 5px; font-size: 0.9rem; }
+    .file-preview { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+    .file-preview-item { background: #f8f9fa; padding: 8px 12px; border-radius: 8px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+    .form-actions { display: flex; justify-content: flex-end; gap: 15px; margin-top: 20px; }
+    .btn { padding: 12px 25px; border-radius: 25px; font-weight: 500; text-decoration: none; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-primary { background: var(--secondary); color: white; border: none; }
+    .btn-primary:hover { background: #2980b9; transform: translateY(-2px); }
+    .btn-secondary { background: transparent; color: var(--primary); border: 2px solid var(--primary); }
+    .btn-secondary:hover { background: var(--primary); color: white; transform: translateY(-2px); }
+    .btn-info { background: #17a2b8; color: white; border: none; }
+    .btn-info:hover { background: #138496; }
+    .btn-sm { font-size: 0.9rem; padding: 6px 12px; }
+    @media (max-width: 600px) {
+        .form-actions { flex-direction: column; gap: 10px; }
+        .btn { width: 100%; justify-content: center; }
+    }
+</style>
+
+<script>
+    // File preview functionality
+    const fileInput = document.getElementById('files');
+    const filePreview = document.getElementById('file-preview');
+
+    fileInput.addEventListener('change', () => {
+        filePreview.innerHTML = '';
+        const files = fileInput.files;
+        for (const file of files) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-preview-item';
+            fileItem.innerHTML = `
+                <span>${file.name}</span>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="removeFile(this, '${file.name}')">
+                    <i class="bi bi-x"></i>
+                </button>
+            `;
+            filePreview.appendChild(fileItem);
+        }
+    });
+
+    function removeFile(button, fileName) {
+        const dt = new DataTransfer();
+        const files = fileInput.files;
+        for (const file of files) {
+            if (file.name !== fileName) {
+                dt.items.add(file);
+            }
+        }
+        fileInput.files = dt.files;
+        button.parentElement.remove();
+    }
+
+    // Form submission loading state
+    const form = document.getElementById('upload-form');
+    const submitBtn = document.getElementById('submit-btn');
+    form.addEventListener('submit', () => {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sharing...';
+    });
+
+    // Initialize Bootstrap components
+    document.addEventListener('DOMContentLoaded', () => {
+        $('.selectpicker').selectpicker();
+        $('[data-bs-toggle="tooltip"]').tooltip();
+    });
+</script>
+{% endblock %}
