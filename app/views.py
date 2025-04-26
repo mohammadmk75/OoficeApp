@@ -1,11 +1,13 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request,jsonify, send_from_directory,current_app,make_response
+from flask import Blueprint, render_template, redirect, url_for, flash, request,jsonify, send_from_directory,current_app,make_response,send_file
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 from flask_mail import Message
 from itsdangerous import URLSafeTimedSerializer
 from app import db, mail, limiter,scheduler
+from app.tasks import generate_reset_token, verify_reset_token
+from werkzeug.security import generate_password_hash
 from app.forms import LoginForm, RegistrationForm, ProfileForm,SendInviteForm
-from app.models import Users,Tasks,Meetings,Requests,RequestReplies,StickyNotes,Announcements,LunchOrder,TaskLog
+from app.models import Users,Tasks,Meetings,Requests,RequestReplies,StickyNotes,Announcements,LunchOrder,TaskLog,RequestReferrals,Documents
 from datetime import datetime,timedelta
 from flask import jsonify
 import pytz
@@ -13,27 +15,32 @@ from sqlalchemy import or_,and_
 import os
 import logging
 from app import db
-# import time
+from io import BytesIO
+import pdf2image
 import pika
 import json
+from PIL import Image
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from PyPDF2 import PdfReader, PdfWriter
+import base64
 
 def iran_now():
     return datetime.utcnow() + timedelta(hours=3, minutes=30)
-now1 = iran_now()
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 LUNCH_MENU = {
-    "Saturday": ["lunch1", "lunch 2"],
-    "Sunday": ["lunch1", "lunch 2"],
-    "Monday": ["lunch1", "lunch 2"],
-    "Tuesday": ["lunch1", "lunch 2"],
-    "Wednesday": ["lunch1", "lunch 2"],
+    "Saturday": ["زرشک پلو (سینه)", "زرشک پلو (ران)", "خوراک مرغ (سینه)", "خوراک مرغ (ران)"],
+    "Sunday": ["کوبیده", "جوجه (سینه)", "جوجه (ران)"],
+    "Monday": ["عدس پلو", "جوجه (سینه)", "جوجه (ران)"],
+    "Tuesday": ["لوبیا پلو", "زرشک پلو (سینه)", "زرشک پلو (ران)", "خوراک مرغ (سینه)", "خوراک مرغ (ران)"],
+    "Wednesday": ["ماهی",  "جوجه (سینه)", "جوجه (ران)"],
 }
 
 main_blueprint = Blueprint('main', __name__)
-serializer = URLSafeTimedSerializer('Genarate Strong Serial')
+serializer = URLSafeTimedSerializer('pbbivvx9a*o$ng$*kk@$=)h9bq($jc1i9hb44r_1@bbnlhzoc')
 
 def publish_to_rabbitmq(meeting_id, attendees_data):
     # RabbitMQ connection parameters
@@ -93,11 +100,13 @@ def logout():
 def register(token):
     try:
         email = serializer.loads(token, salt='email-confirm', max_age=3600).lower()
-    except:
+    except Exception as e:
         flash('The registration link is invalid or has expired.', 'danger')
+        print(f'Token error: {e}')
         return redirect(url_for('main.home'))
 
     form = RegistrationForm()
+    print('Form data:', request.form)
     if form.validate_on_submit():
         user = Users(
             first_name=form.first_name.data,
@@ -106,14 +115,22 @@ def register(token):
             phone_number=form.phone_number.data,
             date_of_birth=form.date_of_birth.data,
             group='employee',
-            is_superuser=False
+            is_superuser=False,
+            password_reset_token=None,
+            token_expiry=None
         )
+        print(f'user data is: {user}')
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
         flash('Registration successful! Please log in.', 'success')
         return redirect(url_for('main.login'))
-    return render_template('register.html', form=form)
+    else:
+        print('Form not validated')
+        print(form.errors)
+
+    return render_template('register.html', form=form, token=token)
+
 
 @main_blueprint.route('/profile')
 @login_required
@@ -177,9 +194,10 @@ def send_register_link():
 
 @main_blueprint.route('/dashboard')
 @login_required
+
 def dashboard():
     
-    now = now1
+    now = iran_now()
     week_start = (now - timedelta(days=(now.weekday() + 2) % 7)).replace(hour=0, minute=0, second=0, microsecond=0)
     week_end = week_start + timedelta(days=7)
     two_days_ago = now - timedelta(days=2)
@@ -187,26 +205,33 @@ def dashboard():
     # Handle "load earlier" parameter
     load_earlier = request.args.get('load_earlier', 'false') == 'true'
 
-
     tasks_query = Tasks.query.filter(
-            (Tasks.assigned_to == current_user.id) | (Tasks.created_by == current_user.id)
+            (Tasks.assigned_to == current_user.id) 
         )
 
     # Apply time filter: this week by default, all if load_earlier is true
     if not load_earlier:
         tasks_query = tasks_query.filter(Tasks.last_updated >= week_start, Tasks.last_updated < week_end)
-    
+
     tasks = tasks_query.filter(or_(Tasks.status != 'done', Tasks.last_updated >= two_days_ago)).all()
 
     # Announcements and other data remain unchanged
-    announcements = Announcements.query.filter(
-        or_(Announcements.target_group == current_user.group, Announcements.target_group.is_(None)),
-        Announcements.created_at >= week_start
-    ).order_by(Announcements.created_at.desc()).all()
-    new_announcements_count = Announcements.query.filter(
-        or_(Announcements.target_group == current_user.group, Announcements.target_group.is_(None)),
-        Announcements.created_at >= now - timedelta(days=1)
-    ).count()
+    if current_user.group in ['Managers', 'CEO', 'Admin']:
+            announcements = Announcements.query.filter(
+                Announcements.created_at >= week_start
+            ).order_by(Announcements.created_at.desc()).all()
+            new_announcements_count = Announcements.query.filter(
+                Announcements.created_at >= now - timedelta(days=1)
+            ).count()
+    else:
+            announcements = Announcements.query.filter(
+                or_(Announcements.target_group == current_user.group, Announcements.target_group.is_(None)),
+                Announcements.created_at >= week_start
+            ).order_by(Announcements.created_at.desc()).all()
+            new_announcements_count = Announcements.query.filter(
+                or_(Announcements.target_group == current_user.group, Announcements.target_group.is_(None)),
+                Announcements.created_at >= now - timedelta(days=1)
+            ).count()
     meetings = Meetings.query.filter(
         Meetings.scheduled_date >= now,
         Meetings.people.contains(str(current_user.id))
@@ -222,7 +247,7 @@ def dashboard():
                            load_earlier=load_earlier
                            )
 
-@main_blueprint.route('/task/update_status', methods=['POST'])
+@main_blueprint.route('/tasks/update_status', methods=['POST'])
 @login_required
 def update_task_status():
     data = request.get_json()
@@ -230,7 +255,7 @@ def update_task_status():
     new_status = data.get('status')
 
     task = Tasks.query.get_or_404(task_id)
-    now_iran = now1  # Still needed for manual updates
+    now_iran = iran_now()  # Still needed for manual updates
 
     # Permission checks remain unchanged
     assignee = Users.query.get(task.assigned_to) if task.assigned_to else None
@@ -267,6 +292,46 @@ def update_task_status():
 
 
 
+# @main_blueprint.route('/tasks')
+# @login_required
+# def tasks():
+#     filter_type = request.args.get('filter', 'all')  # Default to 'all'
+#     now = now1
+
+#     if current_user.group in ['Admin', 'CEO', 'Managers']:
+#         if filter_type == 'created_by_me':
+#             tasks = Tasks.query.filter(Tasks.created_by == current_user.id).all()
+#         elif filter_type == 'assigned_to_me':
+#             tasks = Tasks.query.filter(Tasks.assigned_to == current_user.id).all()
+#         elif filter_type == 'group':
+#             tasks = Tasks.query.filter(
+#                 Tasks.assigned_to.in_(db.session.query(Users.id).filter(Users.group == current_user.group))
+#             ).all()
+#         else:  # 'all'
+#             tasks = Tasks.query.all()
+#     elif current_user.is_teamlead:
+#         if filter_type == 'created_by_me':
+#             tasks = Tasks.query.filter(Tasks.created_by == current_user.id).all()
+#         elif filter_type == 'assigned_to_me':
+#             tasks = Tasks.query.filter(Tasks.assigned_to == current_user.id).all()
+#         elif filter_type == 'group':
+#             tasks = Tasks.query.filter(
+#                 Tasks.assigned_to.in_(db.session.query(Users.id).filter(Users.group == current_user.group))
+#             ).all()
+#         else:  # 'all'
+#             tasks = Tasks.query.filter(
+#                 or_(
+#                     Tasks.assigned_to == current_user.id,
+#                     Tasks.created_by == current_user.id,
+#                     Tasks.assigned_to.in_(db.session.query(Users.id).filter(Users.group == current_user.group))
+#                 )
+#             ).all()
+#     else:
+#         tasks = Tasks.query.filter(
+#             (Tasks.assigned_to == current_user.id) | (Tasks.created_by == current_user.id)
+#         ).all()
+
+#     return render_template('view_tasks.html', tasks=tasks, filter_type=filter_type)
 
 @main_blueprint.route('/tasks')
 @login_required
@@ -274,7 +339,7 @@ def tasks():
     filter_type = request.args.get('filter', 'all')  # Default to 'all'
     time_filter = request.args.get('time_filter', 'all')  # Default to 'all'
     status_filter = request.args.get('status_filter', 'all')  # Default to 'all'
-    now = now1  # Current date/time
+    now = iran_now()  # Current date/time
 
     # Base query based on user role
     if current_user.group in ['Admin', 'CEO', 'Managers']:
@@ -312,10 +377,10 @@ def tasks():
 
     # Apply time filter
     if time_filter == 'last_week':
-        last_week_start = now1 - timedelta(days=7)
+        last_week_start = iran_now() - timedelta(days=7)
         base_query = base_query.filter(Tasks.created_at >= last_week_start)
     elif time_filter == 'last_month':
-        last_month_start = now1 - timedelta(days=30)
+        last_month_start = iran_now() - timedelta(days=30)
         base_query = base_query.filter(Tasks.created_at >= last_month_start)
     elif time_filter == 'this_year':
         year_start = datetime(now.year, 1, 1)
@@ -337,7 +402,158 @@ def tasks():
         status_filter=status_filter
     )
 
+# @main_blueprint.route('/task_reports', methods=['GET'])
+# @login_required
+# def task_reports():
+#     # Get filters
+#     time_filter = request.args.get('time_filter', 'all')
+#     status_filter = request.args.get('status_filter', 'all')
 
+#     # Base query
+#     query = Tasks.query
+
+#     # Role-based filtering
+#     if current_user.group in ['Admin', 'CEO', 'Managers']:
+#         # CEO, Managers, Superusers: See all tasks
+#         pass
+#     elif current_user.group == 'team_lead':
+#         # Team Leads: See tasks for their group
+#         query = query.filter(Tasks.group == current_user.group)
+#     else:
+#         # Others: See only their own tasks
+#         query = query.filter(or_(
+#             Tasks.assigned_to == current_user.id,
+#             Tasks.created_by == current_user.id
+#         ))
+
+#     # Time filter
+#     now_iran = iran_now()
+#     if time_filter == 'last_week':
+#         query = query.filter(Tasks.created_at >= now_iran - timedelta(days=7))
+#     elif time_filter == 'last_month':
+#         query = query.filter(Tasks.created_at >= now_iran - timedelta(days=30))
+#     elif time_filter == 'this_year':
+#         query = query.filter(Tasks.created_at >= now_iran.replace(month=1, day=1, hour=0, minute=0, second=0))
+
+#     # Status filter
+#     if status_filter != 'all':
+#         query = query.filter(Tasks.status == status_filter)
+
+#     # Fetch tasks
+#     tasks = query.all()
+
+#     # Compute summary metrics
+#     total_tasks = len(tasks)
+#     completed_tasks = len([t for t in tasks if t.status in ['finished', 'done']])
+#     overdue_tasks = len([t for t in tasks if t.due_date < now_iran and t.status not in ['finished', 'done']])
+#     completion_rate = round((completed_tasks / total_tasks * 100), 1) if total_tasks > 0 else 0
+
+#     summary = {
+#         'total_tasks': total_tasks,
+#         'completed_tasks': completed_tasks,
+#         'overdue_tasks': overdue_tasks,
+#         'completion_rate': completion_rate
+#     }
+
+#     # Status counts for chart
+#     status_counts = {
+#         'pending': len([t for t in tasks if t.status == 'pending']),
+#         'in_progress': len([t for t in tasks if t.status == 'in_progress']),
+#         'finished': len([t for t in tasks if t.status == 'finished']),
+#         'done': len([t for t in tasks if t.status == 'done'])
+#     }
+
+#     # Priority counts for chart
+#     priority_counts = {
+#         'low': len([t for t in tasks if t.priority == 'low']),
+#         'medium': len([t for t in tasks if t.priority == 'medium']),
+#         'high': len([t for t in tasks if t.priority == 'high'])
+#     }
+
+#     return render_template('task_reports.html',
+#                            tasks=tasks,
+#                            summary=summary,
+#                            status_counts=status_counts,
+#                            priority_counts=priority_counts,
+#                            time_filter=time_filter,
+#                            status_filter=status_filter)
+
+
+@main_blueprint.route('/task_reports', methods=['GET'])
+@login_required
+def task_reports():
+    # Get filters
+    time_filter = request.args.get('time_filter', 'all')
+    status_filter = request.args.get('status_filter', 'all')
+
+    # Base query
+    query = Tasks.query
+
+    # Role-based filtering
+    if current_user.group in ['Admin', 'CEO', 'Managers']:
+        # CEO, Managers, Superusers: See all tasks
+        pass
+    elif current_user.group == 'team_lead':
+        # Team Leads: See tasks for their group
+        query = query.filter(Tasks.group == current_user.group)
+    else:
+        # Others: See only their own tasks
+        query = query.filter(or_(
+            Tasks.assigned_to == current_user.id,
+            Tasks.created_by == current_user.id
+        ))
+
+    # Time filter
+    now_iran = iran_now()
+    if time_filter == 'last_week':
+        query = query.filter(Tasks.created_at >= now_iran - timedelta(days=7))
+    elif time_filter == 'last_month':
+        query = query.filter(Tasks.created_at >= now_iran - timedelta(days=30))
+    elif time_filter == 'this_year':
+        query = query.filter(Tasks.created_at >= now_iran.replace(month=1, day=1, hour=0, minute=0, second=0))
+
+    # Status filter
+    if status_filter != 'all':
+        query = query.filter(Tasks.status == status_filter)
+
+    # Fetch tasks
+    tasks = query.all()
+
+    # Compute summary metrics
+    total_tasks = len(tasks)
+    completed_tasks = len([t for t in tasks if t.status in ['finished', 'done']])
+    overdue_tasks = len([t for t in tasks if t.due_date and t.due_date < now_iran.date() and t.status not in ['finished', 'done']])
+    completion_rate = round((completed_tasks / total_tasks * 100), 1) if total_tasks > 0 else 0
+
+    summary = {
+        'total_tasks': total_tasks,
+        'completed_tasks': completed_tasks,
+        'overdue_tasks': overdue_tasks,
+        'completion_rate': completion_rate
+    }
+
+    # Status counts for chart
+    status_counts = {
+        'pending': len([t for t in tasks if t.status == 'pending']),
+        'in_progress': len([t for t in tasks if t.status == 'in_progress']),
+        'finished': len([t for t in tasks if t.status == 'finished']),
+        'done': len([t for t in tasks if t.status == 'done'])
+    }
+
+    # Priority counts for chart
+    priority_counts = {
+        'low': len([t for t in tasks if t.priority == 'low']),
+        'medium': len([t for t in tasks if t.priority == 'medium']),
+        'high': len([t for t in tasks if t.priority == 'high'])
+    }
+
+    return render_template('task_reports.html',
+                           tasks=tasks,
+                           summary=summary,
+                           status_counts=status_counts,
+                           priority_counts=priority_counts,
+                           time_filter=time_filter,
+                           status_filter=status_filter)
 
 @main_blueprint.route('/task/add', methods=['GET', 'POST'])
 @login_required
@@ -349,7 +565,7 @@ def add_task():
         due_date = request.form.get('due_date')
         priority = request.form.get('priority')
         status = request.form.get('status')
-        now_iran = now1
+        now_iran = iran_now()
 
         if not title or not due_date or not priority or not status:
             flash("Title, Due Date, Priority, and Status are required!", "danger")
@@ -400,13 +616,12 @@ def edit_task(task_id):
     is_teamlead_for_group = (current_user.is_teamlead and assignee and assignee.group == current_user.group)
 
     # Permission check
-    if not (task.created_by == current_user.id or task.assigned_to == current_user.id or is_teamlead_for_group or current_user.group in ['Admin', 'CEO', 'Managers']):
+    if not (task.created_by == current_user.id or task.assigned_to == current_user.id or is_teamlead_for_group or current_user.group == 'Admin' or current_user.is_superuser):
         flash("You don't have permission to edit this task.", "danger")
         return redirect(url_for('main.tasks'))
 
     if request.method == 'POST':
-        iran_tz = pytz.timezone('Asia/Tehran')
-        now_iran = now1
+        now_iran = iran_now()
 
         title = request.form.get('title')
         assigned_to = request.form.get('assigned_to')
@@ -424,7 +639,10 @@ def edit_task(task_id):
                 return redirect(url_for('main.edit_task', task_id=task_id))
 
         # Status transitions
-        if status == 'finished' and (task.assigned_to == current_user.id or is_teamlead_for_group):
+        if current_user.group == 'Admin' or current_user.is_superuser:
+            task.status = status
+            flash('Task status updated successfully!', 'success')
+        elif status == 'finished' and (task.assigned_to == current_user.id or is_teamlead_for_group):
             task.status = 'finished'
             flash('Task marked as finished. Awaiting creator approval.', 'info')
         elif status == 'done' and (task.created_by == current_user.id or is_teamlead_for_group) and task.status == 'finished':
@@ -465,6 +683,7 @@ def edit_task(task_id):
     else:
         users = Users.query.all()
     return render_template('edit_task.html', task=task, users=users)
+
 
     
 @main_blueprint.route('/task/delete/<int:task_id>', methods=['GET', 'POST'])
@@ -725,53 +944,60 @@ def send_request():
 
 #     return render_template('view_requests.html', sent_requests=sent_requests, received_requests=received_requests)
 
-
 @main_blueprint.route('/requests')
 @login_required
 def view_requests():
-    now = now1  # Current time in Iran timezone
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)  # Start of today
+    now = iran_now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Today's sent requests
+    # Sent requests (including those referred by the user)
     sent_requests = Requests.query.filter(
-        Requests.sender_id == current_user.id,
+        or_(
+            Requests.sender_id == current_user.id,
+            Requests.referrals.any(RequestReferrals.referrer_id == current_user.id)
+        ),
         Requests.created_at >= today_start
     ).order_by(Requests.created_at.desc()).all()
 
-    # Received requests: Only show today's requests (unread or with unread replies)
-    if current_user.is_superuser:
-        received_requests = Requests.query.filter(
-            Requests.created_at >= today_start,  # Only today's requests
-            or_(
-                Requests.is_read == False,
-                Requests.replies.any(RequestReplies.created_at > Requests.last_updated)
-            )
-        ).order_by(Requests.created_at.desc()).all()
-    else:
-        received_requests = Requests.query.filter(
-            Requests.created_at >= today_start,  # Only today's requests
-            or_(
-                and_(Requests.receiver_id == current_user.id, Requests.is_read == False),
-                and_(Requests.department == current_user.group, Requests.is_read == False),
-                and_(
-                    or_(
-                        Requests.receiver_id == current_user.id,
-                        Requests.department == current_user.group
-                    ),
-                    Requests.replies.any(and_(
-                        RequestReplies.created_at > Requests.last_updated,
-                        RequestReplies.sender_id != current_user.id
-                    ))
-                )
-            )
-        ).order_by(Requests.created_at.desc()).all()
+    # Identify sent requests with unread replies
+    new_reply_request_ids = [
+        request.id for request in sent_requests
+        if RequestReplies.query.filter_by(request_id=request.id, is_read=False).count() > 0
+    ]
 
-    return render_template('view_requests.html', sent_requests=sent_requests, received_requests=received_requests)
+    # Received requests (based on user ID, group, or referred to user/group)
+    received_requests = Requests.query.filter(
+        Requests.created_at >= today_start,
+        or_(
+            Requests.receiver_id == current_user.id,
+            Requests.department == current_user.group,
+            Requests.referrals.any(RequestReferrals.referred_to_user_id == current_user.id),
+            Requests.referrals.any(RequestReferrals.referred_to_dept == current_user.group)
+        )
+    ).order_by(Requests.created_at.desc()).all()
+
+    # Identify unread received requests (including referred ones)
+    unread_requests_ids = [
+        request.id for request in received_requests
+        if not request.is_read and (
+            request.receiver_id == current_user.id or
+            request.department == current_user.group or
+            any(ref.referred_to_user_id == current_user.id or ref.referred_to_dept == current_user.group
+                for ref in request.referrals)
+        )
+    ]
+
+    return render_template('view_requests.html',
+                           sent_requests=sent_requests,
+                           received_requests=received_requests,
+                           unread_requests_ids=unread_requests_ids,
+                           new_reply_request_ids=new_reply_request_ids)
+
 
 @main_blueprint.route('/requests/archive')
 @login_required
 def requests_archive():
-    now = now1
+    now = iran_now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Archived received requests (read and created before today)
@@ -803,7 +1029,7 @@ def requests_archive():
 @main_blueprint.route('/sent_requests/archive')
 @login_required
 def sent_requests_archive():
-    now = now1
+    now = iran_now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Archived sent requests (before today)
@@ -822,27 +1048,50 @@ def sent_requests_archive():
     return render_template('sent_requests_archive.html', archive_by_month=archive_by_month)
 
 
-
 @main_blueprint.route('/requests/<int:request_id>', methods=['GET', 'POST'])
 @login_required
 def view_request(request_id):
     req = Requests.query.get_or_404(request_id)
     
-    if not current_user.is_superuser:
-        if req.sender_id != current_user.id and req.receiver_id != current_user.id and req.department != current_user.group:
-            flash("You don't have permission to view this request.", "danger")
-            return redirect(url_for('main.view_requests'))
+    # Permission check: Allow sender, receiver, department members, referrers, or superusers to view
+    is_referrer = RequestReferrals.query.filter_by(
+        request_id=request_id,
+        referrer_id=current_user.id
+    ).first() is not None
+    is_receiver = (
+        req.receiver_id == current_user.id or 
+        req.department == current_user.group or
+        RequestReferrals.query.filter_by(
+            request_id=request_id,
+            referred_to_user_id=current_user.id
+        ).first() is not None or
+        RequestReferrals.query.filter_by(
+            request_id=request_id,
+            referred_to_dept=current_user.group
+        ).first() is not None
+    )
+
+    if not current_user.is_superuser and req.sender_id != current_user.id and not is_receiver and not is_referrer:
+        flash("You don't have permission to view this request.", "danger")
+        return redirect(url_for('main.view_requests'))
 
     if request.method == 'POST':
         reply_text = request.form.get('reply_text')
-        status = request.form.get('status')
+        action = request.form.get('action')
         file = request.files.get('attachment')
+
+        # Restrict approve/reject/refer to receivers (including referrers) only
+        if action in ['approve', 'reject'] and not is_receiver:
+            flash("You don't have permission to approve or reject this request.", "danger")
+            return redirect(url_for('main.view_request', request_id=request_id))
 
         if reply_text:
             reply = RequestReplies(
                 request_id=request_id,
                 sender_id=current_user.id,
-                text=reply_text
+                text=reply_text,
+                created_at=iran_now(),
+                is_read=False
             )
             if file and file.filename:
                 filename = secure_filename(file.filename)
@@ -851,18 +1100,96 @@ def view_request(request_id):
                 reply.attachment = filename
             db.session.add(reply)
 
-        if status and (current_user.id == req.receiver_id or current_user.group == req.department or current_user.is_superuser):
-            req.status = status
+        if action in ['approve', 'reject'] and is_receiver:
+            req.status = action
+            req.last_updated = iran_now()
+
         req.is_read = True
         db.session.commit()
         flash('Reply sent successfully!' if reply_text else 'Status updated!', 'success')
+        return redirect(url_for('main.view_requests'))
+
+    # Mark replies as read if the user is the sender or referrer
+    if req.sender_id == current_user.id or is_referrer:
+        unread_replies = RequestReplies.query.filter_by(request_id=request_id, is_read=False).all()
+        for reply in unread_replies:
+            reply.is_read = True
+
+    # Mark the request as read if the user is a receiver
+    if not req.is_read and is_receiver:
+        req.is_read = True
+
+    # Commit changes to the database
+    db.session.commit()
+
+    # Fetch replies and referrals
+    replies = RequestReplies.query.filter_by(request_id=request_id).order_by(RequestReplies.created_at.asc()).all()
+    referrals = RequestReferrals.query.filter_by(request_id=request_id).order_by(RequestReferrals.created_at.asc()).all()
+
+    return render_template('view_request.html',
+                           request=req,
+                           replies=replies,
+                           referrals=referrals,
+                           is_receiver=is_receiver)
+
+# Add this new route below the existing routes
+@main_blueprint.route('/requests/refer/<int:request_id>', methods=['GET', 'POST'])
+@login_required
+def refer_request(request_id):
+    request_obj = Requests.query.get_or_404(request_id)
+    
+    # Permission check: Only receivers (direct, department, or referred to) can refer
+    is_receiver = (
+        request_obj.receiver_id == current_user.id or 
+        request_obj.department == current_user.group or
+        RequestReferrals.query.filter_by(
+            request_id=request_id,
+            referred_to_user_id=current_user.id
+        ).first() is not None or
+        RequestReferrals.query.filter_by(
+            request_id=request_id,
+            referred_to_dept=current_user.group
+        ).first() is not None
+    )
+
+    if not current_user.is_superuser and not is_receiver:
+        flash("You don't have permission to refer this request.", "danger")
         return redirect(url_for('main.view_request', request_id=request_id))
 
-    replies = RequestReplies.query.filter_by(request_id=request_id).order_by(RequestReplies.created_at.asc()).all()
-    if not req.is_read and (req.receiver_id == current_user.id or req.department == current_user.group):
-        req.is_read = True
+    if request.method == 'POST':
+        referred_to_user_id = request.form.get('referred_to_user_id')
+        referred_to_dept = request.form.get('referred_to_dept')
+        reason = request.form.get('reason')
+
+        if not referred_to_user_id and not referred_to_dept:
+            flash("You must select a user or department to refer to.", "danger")
+            return redirect(url_for('main.refer_request', request_id=request_id))
+
+        # Create referral record
+        referral = RequestReferrals(
+            request_id=request_id,
+            referrer_id=current_user.id,
+            referred_to_user_id=int(referred_to_user_id) if referred_to_user_id else None,
+            referred_to_dept=referred_to_dept if referred_to_dept else None,
+            reason=reason,
+            created_at=iran_now()
+        )
+        
+        # Update request
+        request_obj.status = 'referred'
+        request_obj.receiver_id = int(referred_to_user_id) if referred_to_user_id else None
+        request_obj.department = referred_to_dept if referred_to_dept else None
+        request_obj.last_updated = iran_now()
+        request_obj.is_read = False  # Ensure the referred request appears as unread
+
+        db.session.add(referral)
         db.session.commit()
-    return render_template('view_request.html', request=req, replies=replies)
+        flash("Request referred successfully!", "success")
+        return redirect(url_for('main.view_requests'))
+
+    users = Users.query.all()
+    departments = ['CEO', 'Managers', 'Engineering and Marketing', 'Finance', 'Office', 'Admin']
+    return render_template('refer_request.html', request=request_obj, users=users, departments=departments)
 
 @main_blueprint.route('/download/<filename>')
 @login_required
@@ -945,7 +1272,7 @@ def add_announcement():
             return redirect(url_for('main.add_announcement'))
 
         iran_tz = pytz.timezone('Asia/Tehran')
-        now_iran =now1
+        now_iran =iran_now()
 
         announcement = Announcements(
             user_id=current_user.id,
@@ -978,7 +1305,7 @@ def add_announcement():
 @login_required
 def announcements_viewed():
     iran_tz = pytz.timezone('Asia/Tehran')
-    now_iran = now1
+    now_iran = iran_now()
     # No explicit "is_read" flag; reset count by assuming viewed announcements are older than 24h
     # Alternatively, we could add an is_read flag to Announcements if you prefer persistent tracking
     return jsonify({"status": "success"})
@@ -986,21 +1313,27 @@ def announcements_viewed():
 @main_blueprint.route('/announcement_archive')
 @login_required
 def announcement_archive():
-    now = now1  # Server time
+    now = iran_now()  # Server time
     days_since_saturday = (now.weekday() + 2) % 7
     week_start = (now - timedelta(days=days_since_saturday)).replace(hour=0, minute=0, second=0, microsecond=0)  # Midnight on Saturday
 
     # Log for debugging
     logger.debug(f"Archive - Now: {now}, Week start: {week_start}")
 
-    # Get archived announcements (before this week)
-    archived_announcements = Announcements.query.filter(
-        or_(
-            Announcements.target_group == current_user.group,
-            Announcements.target_group.is_(None)
-        ),
-        Announcements.created_at < week_start
-    ).order_by(Announcements.created_at.desc()).all()
+    if current_user.group in ['Managers', 'CEO', 'Admin']:
+            archived_announcements = Announcements.query.filter(
+                Announcements.created_at < week_start
+            ).order_by(Announcements.created_at.desc()).all()
+  
+
+    else:# Get archived announcements (before this week)
+        archived_announcements = Announcements.query.filter(
+            or_(
+                Announcements.target_group == current_user.group,
+                Announcements.target_group.is_(None)
+            ),
+            Announcements.created_at < week_start
+        ).order_by(Announcements.created_at.desc()).all()
 
     # Log archived announcements
     for ann in archived_announcements:
@@ -1019,7 +1352,7 @@ def announcement_archive():
 
 
 def is_lunch_time():
-    now = now1 # Already in Iran time due to global config
+    now = iran_now() # Already in Iran time due to global config
     day = now.strftime('%A')  # Day of the week (e.g., "Saturday")
     hour = now.hour
     minute = now.minute
@@ -1029,7 +1362,7 @@ def is_lunch_time():
 @main_blueprint.route('/lunch', methods=['GET', 'POST'])
 @login_required
 def lunch():
-    now = now1  # Current time in Iran
+    now = iran_now()  # Current time in Iran
     today = now.strftime('%A')  # e.g., "Monday"
 
     # Check if today is a valid lunch day
@@ -1089,64 +1422,66 @@ def lunch():
 @login_required
 def get_notifications():
     iran_tz = pytz.timezone('Asia/Tehran')
-    now_iran = datetime.now(iran_tz)
+    now_iran = iran_now()
+    print(f"now_iran: {now_iran}, iran_tz: {iran_tz}")
 
-    # If last_notifications_viewed is None, default to 30 days ago
+    # Default to 30 days ago if last_notifications_viewed is None
     last_viewed = current_user.last_notifications_viewed or (now_iran - timedelta(days=30))
-
-    # Convert last_notifications_viewed from UTC to Iran time (if it's stored in UTC)
-    if current_user.last_notifications_viewed:
-        last_viewed = current_user.last_notifications_viewed.astimezone(iran_tz)
-
-    # Debugging: Check the last_viewed in Iran time and the current time in Iran time
-
+    print(f"last_viewed (Iran): {last_viewed}")
 
     # New tasks (last 24 hours, after last viewed)
     new_tasks = Tasks.query.filter(
         Tasks.assigned_to == current_user.id,
-        Tasks.last_updated >= last_viewed,  # Use `last_viewed` in Iran time
-        Tasks.last_updated >= now_iran - timedelta(days=1)  # Last 24 hours
+        Tasks.last_updated >= last_viewed,
+        Tasks.last_updated >= now_iran - timedelta(days=1)
     ).all()
 
     task_notifications = [
-        {"type": "task", "message": f" Task Update: {task.title}", "time": task.last_updated.strftime('%Y-%m-%d %H:%M IRST')}
+        {"type": "task", "message": f"Task Update: {task.title}", "time": task.last_updated.astimezone(iran_tz).strftime('%Y-%m-%d %H:%M IRST')}
         for task in new_tasks
     ]
-    last_viewed_iran = last_viewed.astimezone(iran_tz)
 
+    # Upcoming meetings (next 7 days, after last viewed)
     new_meetings = Meetings.query.filter(
-        Meetings.created_at >= now_iran,  # upcoming meetings only
+        Meetings.scheduled_date >= now_iran,
+        Meetings.scheduled_date <= now_iran + timedelta(days=7),
         Meetings.people.contains(str(current_user.id)),
-        Meetings.created_at <= now_iran + timedelta(days=7),
-        Meetings.created_at >= last_viewed_iran  # meetings after last viewed
+        Meetings.created_at >= last_viewed
     ).all()
-    # Upcoming meetings (next 7 days, scheduled after last viewed)
-
 
     meeting_notifications = [
-        {"type": "meeting", "message": f"Upcoming meeting: {meeting.title}", "time": meeting.scheduled_date.strftime('%Y-%m-%d %H:%M IRST')}
+        {"type": "meeting", "message": f"Upcoming meeting: {meeting.title}", "time": meeting.scheduled_date.astimezone(iran_tz).strftime('%Y-%m-%d %H:%M IRST')}
         for meeting in new_meetings
     ]
 
     # New requests (unread, created after last viewed)
-    if current_user.is_superuser:
-        new_requests = Requests.query.filter(
-            Requests.is_read == False,
-            Requests.created_at >= last_viewed
-        ).all()
-    else:
-        new_requests = Requests.query.filter(
-            or_(
-                Requests.receiver_id == current_user.id,
-                Requests.department == current_user.group
-            ),
-            Requests.is_read == False,
-            Requests.created_at >= last_viewed
-        ).all()
+    new_requests = Requests.query.filter(
+        or_(
+            Requests.receiver_id == current_user.id,
+            Requests.department == current_user.group,
+            Requests.referrals.any(RequestReferrals.referred_to_user_id == current_user.id)
+        ),
+        Requests.is_read == False,
+        Requests.created_at >= last_viewed
+    ).all()
 
+    print(f"new_requests count: {len(new_requests)}")
     request_notifications = [
-        {"type": "request", "message": f"New request from {req.sender.first_name}: {req.title}", "time": req.created_at.strftime('%Y-%m-%d %H:%M IRST')}
+        {"type": "request", "message": f"New request from {req.sender.first_name}: {req.title}", "time": req.created_at.astimezone(iran_tz).strftime('%Y-%m-%d %H:%M IRST')}
         for req in new_requests
+    ]
+
+    # Referred requests (unread, referred after last viewed)
+    referred_requests = RequestReferrals.query.filter(
+        RequestReferrals.referred_to_user_id == current_user.id,
+        RequestReferrals.created_at >= last_viewed,
+        RequestReferrals.request.has(Requests.is_read == False)
+    ).all()
+
+    print(f"referred_requests count: {len(referred_requests)}")
+    referral_notifications = [
+        {"type": "referral", "message": f"Request referred to you: {ref.request.title}", "time": ref.created_at.astimezone(iran_tz).strftime('%Y-%m-%d %H:%M IRST')}
+        for ref in referred_requests
     ]
 
     # New announcements (last 24 hours, after last viewed)
@@ -1160,35 +1495,33 @@ def get_notifications():
     ).all()
 
     announcement_notifications = [
-        {"type": "announcement", "message": f"New announcement: {ann.topic}", "time": ann.created_at.strftime('%Y-%m-%d %H:%M IRST')}
+        {"type": "announcement", "message": f"New announcement: {ann.topic}", "time": ann.created_at.astimezone(iran_tz).strftime('%Y-%m-%d %H:%M IRST')}
         for ann in new_announcements
     ]
 
-    notifications = task_notifications + meeting_notifications + request_notifications + announcement_notifications
+    notifications = task_notifications + meeting_notifications + request_notifications + referral_notifications + announcement_notifications
     notifications.sort(key=lambda x: x['time'], reverse=True)
 
+    print(f"total notifications: {len(notifications)}")
     return jsonify({
         "count": len(notifications),
         "notifications": notifications
     })
 
-@main_blueprint.route('/notifications/mark_viewed', methods=['GET','POST'])
+@main_blueprint.route('/notifications/mark_viewed', methods=['GET', 'POST'])
 @login_required
 def mark_notifications_viewed():
-    
-    now_iran = now1
+    now_iran = iran_now()
 
-    # Mark all unread requests as read
-    if current_user.is_superuser:
-        new_requests = Requests.query.filter(Requests.is_read == False).all()
-    else:
-        new_requests = Requests.query.filter(
-            or_(
-                Requests.receiver_id == current_user.id,
-                Requests.department == current_user.group
-            ),
-            Requests.is_read == False
-        ).all()
+    # Mark only the current user's unread requests as read
+    new_requests = Requests.query.filter(
+        or_(
+            Requests.receiver_id == current_user.id,
+            Requests.department == current_user.group,
+            Requests.referrals.any(RequestReferrals.referrer_id == current_user.id)
+        ),
+        Requests.is_read == False
+    ).all()
 
     for req in new_requests:
         req.is_read = True
@@ -1246,4 +1579,178 @@ def edit_user(user_id):
         return redirect(url_for('main.list_users'))
 
     return render_template('edit_user.html', user=user)
+
+@main_blueprint.route('/reset_password', methods=['GET', 'POST'])
+def reset_password_request():
+    if current_user.is_authenticated:
+        flash('You are already logged in.', 'info')
+        return redirect(url_for('main.view_requests'))
+
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = Users.query.filter_by(email=email).first()
+
+        if user:
+            token = generate_reset_token(user.email)
+            reset_url = url_for('main.reset_password_token', token=token, _external=True)
+            msg = Message(
+                subject='Password Reset Request',
+                recipients=[user.email],
+                body=f'''
+                Hello {user.first_name},
+
+                To reset your password, click the following link:
+                {reset_url}
+
+                This link will expire in 30 minutes. If you did not request a password reset, please ignore this email.
+
+                Regards,
+                Your App Team
+                '''
+            )
+            try:
+                mail.send(msg)
+                flash('A password reset link has been sent to your email.', 'success')
+            except Exception as e:
+                flash('Failed to send reset email. Please try again later.', 'danger')
+                # Log the error for debugging: current_app.logger.error(f"Mail error: {e}")
+        else:
+            flash('No account found with that email address.', 'danger')
+
+        return redirect(url_for('main.reset_password_request'))
+
+    return render_template('reset_password_request.html')
+
+@main_blueprint.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password_token(token):
+    if current_user.is_authenticated:
+        flash('You are already logged in.', 'info')
+        return redirect(url_for('main.view_requests'))
+
+    email = verify_reset_token(token)
+    if not email:
+        flash('The password reset link is invalid or has expired.', 'danger')
+        return redirect(url_for('main.reset_password_request'))
+
+    user = Users.query.filter_by(email=email).first()
+    if not user:
+        flash('No account found with that email address.', 'danger')
+        return redirect(url_for('main.reset_password_request'))
+
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+
+        if password != confirm_password:
+            flash('Passwords do not match.', 'danger')
+            return redirect(url_for('main.reset_password_token', token=token))
+
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long.', 'danger')
+            return redirect(url_for('main.reset_password_token', token=token))
+
+        user.password = generate_password_hash(password, method='pbkdf2:sha256')
+        db.session.commit()
+        flash('Your password has been reset successfully. Please log in.', 'success')
+        return redirect(url_for('main.login'))
+
+    return render_template('reset_password.html', token=token)
+
+
+
+@main_blueprint.route('/documents', methods=['GET'])
+@login_required
+def documents():
+    users = Users.query.filter(Users.id != current_user.id).all()  # Exclude current user from recipients
+    return render_template('documents.html', users=users)
+
+@main_blueprint.route('/share_document', methods=['GET', 'POST'])
+@login_required
+def share_document():
+    if request.method == 'POST':
+        files = request.files.getlist('files')  # Handle multiple files
+        title = request.form.get('title')
+        receiver_id = request.form.get('receiver_id')
+
+        if not files or not title or not receiver_id:
+            flash("Please provide a title, select files, and choose a recipient.", "danger")
+            return redirect(url_for('main.share_document'))
+
+        for file in files:
+            if file and file.filename:
+                filename = secure_filename(file.filename)
+                filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+
+                preview_filenames = []
+                if filename.lower().endswith('.pdf'):
+                    try:
+                        images = pdf2image.convert_from_path(filepath, dpi=100)
+                        for i, image in enumerate(images):
+                            preview_filename = f"preview_{filename}_page{i+1}.jpg"
+                            preview_filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], preview_filename)
+                            image.save(preview_filepath, 'JPEG')
+                            preview_filenames.append(preview_filename)
+                            logger.debug(f"Saved preview: {preview_filepath}")
+                    except Exception as e:
+                        logger.error(f"Error generating PDF previews: {str(e)}")
+                        flash(f"Error processing PDF {filename}.", "danger")
+                        continue
+                else:
+                    preview_filenames.append(filename)
+
+                doc = Documents(
+                    title=title,
+                    filename=filename,
+                    preview_filename=preview_filenames[0] if preview_filenames else None,
+                    preview_filenames=json.dumps(preview_filenames),
+                    sender_id=current_user.id,
+                    receiver_id=int(receiver_id)
+                )
+                db.session.add(doc)
+        db.session.commit()
+        flash("Documents sent successfully!", "success")
+        return redirect(url_for('main.documents'))
+
+    users = Users.query.filter(Users.id != current_user.id).all()
+    return render_template('share_document.html', users=users)
+
+@main_blueprint.route('/sent_documents', methods=['GET'])
+@login_required
+def sent_documents():
+    sent = Documents.query.filter_by(sender_id=current_user.id).order_by(Documents.created_at.desc()).all()
+    return render_template('sent_documents.html', sent=sent)
+
+@main_blueprint.route('/received_documents', methods=['GET'])
+@login_required
+def received_documents():
+    received = Documents.query.filter_by(receiver_id=current_user.id).order_by(Documents.created_at.desc()).all()
+    return render_template('received_documents.html', received=received)
+
+@main_blueprint.route('/download/<int:doc_id>')
+@login_required
+def download(doc_id):
+    doc = Documents.query.get_or_404(doc_id)
+    if doc.sender_id != current_user.id and doc.receiver_id != current_user.id:
+        flash("You don't have permission to access this document.", "danger")
+        return redirect(url_for('main.documents'))
+    
+    filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], doc.filename)
+    if not os.path.exists(filepath):
+        flash(f"File {doc.filename} not found on the server.", "danger")
+        return redirect(url_for('main.documents'))
+    
+    return send_file(filepath, as_attachment=True)
+
+@main_blueprint.route('/preview/<int:doc_id>')
+@login_required
+def preview(doc_id):
+    doc = Documents.query.get_or_404(doc_id)
+    if doc.sender_id != current_user.id and doc.receiver_id != current_user.id:
+        flash("You don't have permission to access this document.", "danger")
+        return redirect(url_for('main.documents'))
+    previews = json.loads(doc.preview_filenames) if doc.preview_filenames else []
+    return render_template('preview.html', doc=doc, previews=previews)
+
+
 
